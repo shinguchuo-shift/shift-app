@@ -135,7 +135,12 @@ reference/           デモ
 - [x] **区分・担当業務・営業時間を本番仕様に**（2026-11-08）。テスト18本が通る
 - [x] **月の暫定を日ごとにも入れられる**（2026-11-08）。曜日でまとめて決めてから、カレンダーで日ごとの例外を上書きする。下書きは日ごとに持つ
 - [ ] スタッフ画面の未実装：招待コードでの紐付け画面、確定シフトの表示（N2）、受付期間外の出し分け
-- [ ] Phase 1b（スロット単位へのリファクタ）、Phase 3（LIFF と LINE 連携）から
+- [x] **GitHub Pages 公開済み**（2026-11-08）: https://73norimicchi-lang.github.io/shift-app/
+  リポジトリ https://github.com/73norimicchi-lang/shift-app （公開）。`main` に push すると自動で反映
+- [x] **LIFF の受け口を用意**（`web/js/liff-auth.js`）。LIFF ID が未設定なら素通りするので、今までどおりブラウザでも動く
+- [ ] **次**：LINE Developers でプロバイダー＋LINEログインチャネル＋LIFF を作る（`docs/07` 手順3）
+- [ ] 本番用のスプレッドシートと GAS を別に作り、`DEV_MODE` を false にする
+- [ ] Phase 1b（スロット単位へのリファクタ）
 
 ## 開発中だけの仕掛け（Phase 2 で消す）
 

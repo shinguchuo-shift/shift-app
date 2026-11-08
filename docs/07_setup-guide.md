@@ -72,7 +72,19 @@ Messaging API チャネルを足せば、それまでの紐付けはそのまま
    作った直後は「開発中」で、Admin／Tester 権限の人しか使えない。
    ⚠ **「公開済み」から「開発中」には戻せない**と公式に明記されている。先にテスターで動作確認してから公開する
 
-## 4. GitHub Pages
+## 4. GitHub Pages ✅ 済（2026-11-08）
+
+- リポジトリ：https://github.com/73norimicchi-lang/shift-app （公開）
+- 公開URL：**https://73norimicchi-lang.github.io/shift-app/**
+  - スタッフ用：`https://73norimicchi-lang.github.io/shift-app/index.html`
+  - 店長用：`https://73norimicchi-lang.github.io/shift-app/manager.html`
+- `web/` だけを公開するワークフローは `.github/workflows/pages.yml`。
+  `main` に push すると自動で反映される（1〜2分）
+- **キャッシュ対策は自動**：JS/CSS の `?v=` をコミットハッシュに書き換えてから公開するので、
+  手でバージョンを上げる必要はない
+- `gas/.clasp.json` はスプレッドシートIDを含むので公開していない（`.clasp.json.example` が雛形）
+
+### 以前の手順（参考）
 
 1. リポジトリを作り、Settings → Pages → Source を「GitHub Actions」にする。`web/` フォルダだけを公開するワークフロー（`.github/workflows/pages.yml`）は Claude Code に作ってもらう
 2. `web/js/config.js` に `GAS_URL` と LIFF ID を設定
