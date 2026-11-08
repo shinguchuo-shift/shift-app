@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>疎通テスト</title>
+<style>
+  :root{
+    --bg:#f6f7f9; --card:#fff; --ink:#1a1d21; --sub:#6b7280;
+    --line:#e3e6ea; --ok:#0a7d3f; --ng:#b3261e; --accent:#2563eb;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;padding:16px;background:var(--bg);color:var(--ink);
+       font:15px/1.6 -apple-system,"Hiragino Sans","Noto Sans JP",sans-serif}
+  .wrap{max-width:640px;margin:0 auto}
+  h1{font-size:18px;margin:0 0 4px}
+  .lead{color:var(--sub);font-size:13px;margin:0 0 16px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;
+        padding:14px;margin-bottom:12px}
+  label{display:block;font-size:13px;color:var(--sub);margin-bottom:6px}
+  input{width:100%;padding:10px;border:1px solid var(--line);border-radius:7px;
+        font:inherit;font-size:14px}
+  button{width:100%;margin-top:10px;padding:12px;border:0;border-radius:7px;
+         background:var(--accent);color:#fff;font:inherit;font-weight:600;cursor:pointer}
+  button:disabled{opacity:.5;cursor:default}
+  .result{display:none;margin-top:12px}
+  .result.show{display:block}
+  .verdict{font-weight:700;font-size:16px;margin:0 0 8px}
+  .verdict.ok{color:var(--ok)}
+  .verdict.ng{color:var(--ng)}
+  pre{background:#f0f2f5;border-radius:7px;padding:10px;overflow-x:auto;
+      font-size:12px;margin:8px 0 0;white-space:pre-wrap;word-break:break-all}
+  .hint{font-size:12px;color:var(--sub);margin:10px 0 0}
+  .row{display:flex;gap:8px;font-size:13px;padding:5px 0;border-bottom:1px solid var(--line)}
+  .row:last-child{border:0}
+  .row b{min-width:120px;color:var(--sub);font-weight:400}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Phase 0a 疎通テスト</h1>
+  <p class="lead">
+    別ドメインから <code>Content-Type: text/plain</code> で POST して、
+    プリフライトを起こさずに JSON が読めるかを確かめる。
+  </p>
+
+  <div class="card">
+    <label for="url">GAS のウェブアプリ URL（末尾が <code>/exec</code>）</label>
+    <input id="url" type="url" placeholder="https://script.google.com/macros/s/..../exec">
+    <button id="run">POST して確かめる</button>
+  </div>
+
+  <div class="card result" id="result"></div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+
+// 前回入力した URL を覚えておく（使えない環境もあるので try で囲む）
+try { $('url').value = localStorage.getItem('pingtest-url') || ''; } catch (e) {}
+
+$('run').onclick = async () => {
+  const url = $('url').value.trim();
+  const box = $('result');
+
+  if (!/^https:\/\/script\.google\.com\/.*\/exec$/.test(url)) {
+    show('ng', 'URL の形が違う', '末尾が /exec のウェブアプリ URL を入れてください。\n/dev は使えません（ログインが要るので CORS が通りません）。');
+    return;
+  }
+  try { localStorage.setItem('pingtest-url', url); } catch (e) {}
+
+  $('run').disabled = true;
+  box.innerHTML = '<p class="verdict">送信中…</p>';
+
+  const started = performance.now();
+  try {
+    // ここが検証の本体。
+    // text/plain は CORS の「単純リクエスト」なので、プリフライト（OPTIONS）が飛ばない。
+    // application/json にするとプリフライトが飛び、GAS は OPTIONS を処理できないので失敗する。
+    const res = await fetch(url + '?src=app', {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'ping', payload: { hello: 'みっちー' } }),
+      redirect: 'follow'
+    });
+
+    const ms = Math.round(performance.now() - started);
+    const text = await res.text();
+
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch (e) {
+      // GAS で例外が出ると JSON ではなく HTML のエラーページが返る
+      show('ng', 'JSON として読めなかった', '返ってきた中身：\n' + text.slice(0, 600));
+      return;
+    }
+
+    const rows = [
+      ['所要時間', ms + ' ms'],
+      ['本文が届いたか', data.received ? '届いた' : '届いていない'],
+      ['Content-Type', data.contentType || '(なし)'],
+      ['クエリ src', data.src || '(なし)'],
+      ['最終URL', res.url]
+    ];
+    show('ok', '通った', null, rows, data);
+
+  } catch (err) {
+    // CORS で止められた場合、ブラウザは理由を JS に教えないので TypeError になる
+    show('ng', '通らなかった',
+      err.name + ': ' + err.message +
+      '\n\nCORS で止められた可能性が高い。DevTools の Console と Network を見て、' +
+      'OPTIONS が飛んでいないか、デプロイのアクセス設定が「全員」になっているかを確認。');
+  } finally {
+    $('run').disabled = false;
+  }
+};
+
+function show(kind, title, note, rows, raw) {
+  // 結果欄は最初 display:none なので、中身を入れる前に必ず表示状態にする
+  $('result').className = 'card result show';
+  let h = '<p class="verdict ' + kind + '">' + (kind === 'ok' ? '✓ ' : '✕ ') + title + '</p>';
+  if (rows) h += rows.map(r => '<div class="row"><b>' + r[0] + '</b><span>' + esc(r[1]) + '</span></div>').join('');
+  if (note) h += '<pre>' + esc(note) + '</pre>';
+  if (raw) h += '<p class="hint">返ってきた JSON：</p><pre>' + esc(JSON.stringify(raw, null, 2)) + '</pre>';
+  if (kind === 'ok') h += '<p class="hint">DevTools の Network タブで、この URL への <b>OPTIONS</b> が無いことも確認してください。</p>';
+  $('result').innerHTML = h;
+}
+
+// シートの値を画面に出すときと同じく、必ずエスケープしてから入れる
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, c =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+</script>
+</body>
+</html>

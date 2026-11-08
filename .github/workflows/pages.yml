@@ -1,0 +1,51 @@
+# web/ フォルダだけを GitHub Pages に公開する。
+# 公開される URL は https://<ユーザー名>.github.io/<リポジトリ名>/
+#
+# キャッシュ対策：GitHub Pages は10分キャッシュするので、JS/CSS の読み込みに
+# ?v=<コミットハッシュ> を自動で付ける。手でバージョンを上げ忘れても古いまま読まれない。
+name: Deploy web to Pages
+
+on:
+  push:
+    branches: [main]
+    paths: ['web/**', '.github/workflows/pages.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: バージョン文字列を埋め込む
+        run: |
+          V="${GITHUB_SHA::8}"
+          # ?v=1 のような既存の指定を、コミットハッシュに置き換える
+          find web -name '*.html' -o -name '*.js' | while read -r f; do
+            sed -i "s/?v=[A-Za-z0-9]\{1,12\}/?v=$V/g" "$f"
+          done
+          echo "埋め込んだバージョン: $V"
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: web
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

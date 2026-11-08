@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>シフト作成｜店長</title>
+<link rel="stylesheet" href="css/app.css?v=7">
+</head>
+<body>
+<div class="wrap">
+
+  <div class="head">
+    <h1 id="title">シフト作成</h1>
+    <p class="lead" id="sub">読み込んでいます…</p>
+  </div>
+
+  <div class="devbar hidden" id="devbar">
+    開発用モードで動いています（誰でも店長として操作できます）。実データを入れる前に
+    <code>gas/Auth.js</code> の <code>DEV_MODE</code> を <code>false</code> にしてください。
+  </div>
+
+  <div class="tabs hidden" id="tabs">
+    <button class="tab" data-tab="sub" aria-selected="true">提出状況<small>誰が出したか</small></button>
+    <button class="tab" data-tab="sheet" aria-selected="false">シフト表<small>紙の形</small></button>
+    <button class="tab" data-tab="auto" aria-selected="false">自動作成<small>叩き台</small></button>
+    <button class="tab" data-tab="skill" aria-selected="false">スキル<small>ルールと人</small></button>
+  </div>
+
+  <div id="body">
+    <div class="state" id="state">読み込んでいます…</div>
+  </div>
+
+</div>
+
+<!--
+  モジュールが動かないときに黙って止まらないようにする見張り。
+  file:// で開くと ES Modules が CORS で読み込めず、画面が「読み込んでいます…」のまま固まる。
+  初心者が一番踏む罠なので、原因と直し方をその場に出す。
+-->
+<script>
+(function () {
+  var state = document.getElementById('state');
+
+  function fail(title, body) {
+    if (!state || state.dataset.done === '1') return;
+    state.dataset.done = '1';
+    state.className = 'state err';
+    state.innerHTML = '<b>' + title + '</b><br><span style="color:var(--sub)">' + body + '</span>';
+  }
+
+  if (location.protocol === 'file:') {
+    fail('ファイルを直接開くと動きません',
+      'この画面は ES Modules を使うため、file:// では読み込めません。<br>' +
+      'ターミナルで次を実行して、表示された URL を開いてください。<br><br>' +
+      '<code style="background:#f1f3f5;padding:6px 10px;border-radius:6px;display:inline-block">' +
+      'cd shift-app-handoff/web &amp;&amp; python3 -m http.server 8765</code><br><br>' +
+      'そのあと <code>http://localhost:8765/manager.html</code> を開く');
+    return;
+  }
+
+  // モジュールの読み込み自体に失敗した場合
+  window.addEventListener('error', function (e) {
+    if (e.target && e.target.tagName === 'SCRIPT') {
+      fail('スクリプトを読み込めませんでした', 'ファイルの場所を確かめてください：' + (e.target.src || ''));
+    }
+  }, true);
+
+  // 25秒たっても画面が変わらないとき（GAS は初回5〜9秒かかることがある）
+  setTimeout(function () {
+    if (document.getElementById('state')) {
+      fail('読み込みが終わりません',
+        'ブラウザの開発者ツール（⌥⌘I）の Console に出ているエラーを見てください。<br>' +
+        'よくある原因：GAS の URL が違う／デプロイのアクセス設定が「全員」になっていない／通信できていない');
+    }
+  }, 25000);
+})();
+</script>
+
+<script type="module" src="js/manager.js?v=11"></script>
+</body>
+</html>

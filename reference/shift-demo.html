@@ -1,0 +1,599 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>シフト作成デモ</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&family=Zen+Kaku+Gothic+New:wght@700;900&display=swap">
+<style>
+/* Layout: phone-first single column, sticky segmented tabs for the 3 steps (staff → manager → auto) */
+:root{
+  --bg:#f3f5f7; --surface:#ffffff; --line:#dde2e8; --fg:#18212c; --muted:#5d6876;
+  --accent:#1f5fa8; --accent-ink:#ffffff;
+  --hall:#d9822b; --hall-soft:#fbe9d6; --kitchen:#2f8f6f; --kitchen-soft:#d8efe6;
+  --short:#c8372d; --short-soft:#f8dcd8; --ok:#e6ebf0; --over:#8aa6c9; --over-soft:#dfe8f3;
+  --f-display:"Zen Kaku Gothic New","Hiragino Sans","Noto Sans JP",sans-serif;
+  --f-body:"BIZ UDPGothic","Hiragino Sans","Noto Sans JP","Yu Gothic",sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#12171d; --surface:#1b222b; --line:#2d3743; --fg:#e8edf2; --muted:#9aa6b4;
+  --accent:#6fa6e8; --accent-ink:#0d1520;
+  --hall:#eaa25c; --hall-soft:#3d2c1b; --kitchen:#5cc39d; --kitchen-soft:#183229;
+  --short:#f07468; --short-soft:#43201d; --ok:#252e39; --over:#7f9fc6; --over-soft:#1f2c3c;
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#12171d; --surface:#1b222b; --line:#2d3743; --fg:#e8edf2; --muted:#9aa6b4;
+  --accent:#6fa6e8; --accent-ink:#0d1520;
+  --hall:#eaa25c; --hall-soft:#3d2c1b; --kitchen:#5cc39d; --kitchen-soft:#183229;
+  --short:#f07468; --short-soft:#43201d; --ok:#252e39; --over:#7f9fc6; --over-soft:#1f2c3c;
+  color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:15px;line-height:1.6;font-variant-numeric:tabular-nums}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+.wrap{max-width:760px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:16px 48px;display:flex;flex-direction:column;gap:16px}
+header h1{font-family:var(--f-display);font-weight:900;font-size:1.45rem;margin:0;letter-spacing:.02em;text-wrap:balance}
+header p{margin:2px 0 0;color:var(--muted);font-size:.85rem}
+.tabs{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding-block:6px;display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.tab{font:inherit;font-weight:700;font-size:.82rem;line-height:1.3;padding:8px 4px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--muted);cursor:pointer;display:flex;flex-direction:column;align-items:center}
+.tab b{font-family:var(--f-display);font-size:1rem;color:var(--fg)}
+.tab[aria-selected="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.tab[aria-selected="true"] b{color:var(--accent-ink)}
+.tab:focus-visible,button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+section.panel{display:flex;flex-direction:column;gap:14px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:12px;min-width:0}
+h2{font-family:var(--f-display);font-weight:700;font-size:1.1rem;margin:0}
+.lead{color:var(--muted);font-size:.85rem;margin:0}
+.eyebrow{font-size:.72rem;letter-spacing:.08em;color:var(--muted);font-weight:700}
+select,input[type=number]{font:inherit;font-size:.95rem;padding:6px 8px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--fg)}
+.btn{font:inherit;font-weight:700;padding:11px 16px;border-radius:10px;border:0;background:var(--accent);color:var(--accent-ink);cursor:pointer;font-size:.95rem}
+.btn.ghost{background:transparent;color:var(--accent);border:1px solid var(--line)}
+.btn:active{transform:translateY(1px)}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.chip{display:inline-flex;align-items:center;gap:4px;font-size:.72rem;font-weight:700;padding:1px 7px;border-radius:99px;white-space:nowrap}
+.chip.hall{background:var(--hall-soft);color:var(--hall)}
+.chip.kitchen{background:var(--kitchen-soft);color:var(--kitchen)}
+.chip.both{background:var(--ok);color:var(--fg)}
+/* staff form */
+.who{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.who select{flex:1;min-width:180px}
+.days{display:flex;flex-direction:column}
+.day{display:grid;grid-template-columns:76px auto 1fr;gap:8px;align-items:center;padding-block:9px;border-top:1px solid var(--line)}
+.day:first-child{border-top:0}
+.day .d{font-weight:700}
+.day .d small{color:var(--muted);font-weight:400}
+.day .d.we{color:var(--short)}
+.switch{display:inline-flex;align-items:center;gap:6px;font-size:.8rem;cursor:pointer;user-select:none}
+.switch input{width:18px;height:18px;accent-color:var(--accent)}
+.times{display:flex;align-items:center;gap:4px;justify-content:flex-end}
+.times select{padding:5px 4px;font-size:.9rem}
+.times.off{opacity:.35;pointer-events:none}
+.status{display:flex;justify-content:space-between;align-items:center;font-size:.82rem;color:var(--muted)}
+.bar{height:6px;border-radius:3px;background:var(--ok);overflow:hidden;flex:1}
+.bar i{display:block;height:100%;background:var(--accent)}
+/* manager */
+.daypick{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px}
+.daypick button{font:inherit;flex:0 0 auto;border:1px solid var(--line);background:var(--surface);color:var(--fg);border-radius:10px;padding:5px 9px;cursor:pointer;line-height:1.25;font-size:.8rem;text-align:center;position:relative}
+.daypick button b{display:block;font-size:.95rem}
+.daypick button.we{color:var(--short)}
+.daypick button[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.daypick button .dot{position:absolute;top:4px;right:4px;width:6px;height:6px;border-radius:50%;background:var(--short)}
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.kpi{background:var(--bg);border-radius:10px;padding:8px 10px}
+.kpi span{display:block;font-size:.7rem;color:var(--muted);font-weight:700}
+.kpi b{font-family:var(--f-display);font-size:1.25rem}
+.kpi b.bad{color:var(--short)}
+.scroll{overflow-x:auto;margin-inline:-4px;padding-inline:4px}
+table.heat{border-collapse:separate;border-spacing:2px;font-size:.72rem;width:100%;min-width:340px}
+table.heat th{font-weight:400;color:var(--muted);text-align:center;padding:0}
+table.heat th.r{text-align:left;font-weight:700;color:var(--fg);padding-right:4px;white-space:nowrap}
+table.heat td{height:30px;border-radius:5px;text-align:center;font-weight:700;background:var(--ok);color:var(--muted);min-width:20px}
+table.heat td.short{background:var(--short-soft);color:var(--short)}
+table.heat td.over{background:var(--over-soft);color:var(--over)}
+table.heat td small{display:block;font-weight:400;font-size:.62rem;line-height:1}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:.72rem;color:var(--muted)}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px;vertical-align:-1px}
+.gantt{display:flex;flex-direction:column;gap:3px;min-width:340px}
+.g-row{display:grid;grid-template-columns:84px 1fr 26px;gap:6px;align-items:center}
+.g-name{font-size:.8rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.g-track{display:grid;grid-template-columns:repeat(14,1fr);height:24px;background:repeating-linear-gradient(90deg,transparent 0,transparent calc(100%/14 - 1px),var(--line) calc(100%/14 - 1px),var(--line) calc(100%/14));border-radius:5px;background-color:var(--bg)}
+.g-bar{border-radius:5px;font-size:.66rem;font-weight:700;display:flex;align-items:center;padding-inline:4px;overflow:hidden;white-space:nowrap;color:#fff}
+.g-bar.hall{background:var(--hall)} .g-bar.kitchen{background:var(--kitchen)}
+:root[data-theme="dark"] .g-bar{color:#111}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .g-bar{color:#111}}
+.g-head .g-track{background:none;height:auto;font-size:.66rem;color:var(--muted)}
+.g-head .g-track span{grid-column:span 2}
+.x{font:inherit;border:0;background:transparent;color:var(--muted);cursor:pointer;font-size:1rem;padding:0;width:26px;height:26px;border-radius:6px}
+.x:hover{background:var(--short-soft);color:var(--short)}
+.empty{text-align:center;padding:22px 8px;color:var(--muted);display:flex;flex-direction:column;gap:10px;align-items:center}
+.notice{background:var(--over-soft);color:var(--fg);border-radius:10px;padding:8px 12px;font-size:.82rem;display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.seg{display:grid;grid-template-columns:1fr 1fr;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:3px;gap:3px}
+.seg button{font:inherit;font-weight:700;font-size:.85rem;border:0;border-radius:7px;padding:7px;background:transparent;color:var(--muted);cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--fg);color:var(--bg)}
+:root{--bar-s:70%;--bar-l:84%}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bar-s:35%;--bar-l:32%}}
+:root[data-theme="dark"]{--bar-s:35%;--bar-l:32%}
+.sheet{min-width:640px;border:1.5px solid var(--fg)}
+table.wk{border-collapse:collapse;font-size:.7rem;width:100%;table-layout:fixed}
+table.wk + table.wk{border-top:1.5px solid var(--fg)}
+table.wk th,table.wk td{border:1px solid var(--line);height:20px;padding:0 1px;text-align:center}
+table.wk tr.first th{color:var(--muted);font-weight:400;height:18px;border-bottom:1px solid var(--muted)}
+table.wk th.day{width:52px;font-weight:700;color:var(--fg);font-size:.78rem;line-height:1.3;border-right:1.5px solid var(--fg)}
+table.wk th.day small{display:block}
+table.wk th.day.sat{color:var(--accent)} table.wk th.day.sun{color:var(--short)}
+table.wk th.memo-h{width:96px;color:var(--fg);font-weight:700;border-left:1.5px solid var(--fg)}
+table.wk td.memo{border-left:1.5px solid var(--fg);vertical-align:top;padding:2px}
+table.wk td.memo textarea{width:100%;height:100%;min-height:90px;border:0;resize:none;background:transparent;color:var(--short);font:inherit;font-size:.72rem;padding:2px}
+table.wk td.nm{background:hsl(var(--h) var(--bar-s) var(--bar-l));color:var(--fg);font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+table.wk tr.sum td{height:18px;border-top:1px dashed var(--muted)}
+table.wk tr.sum td.sh{color:var(--short);font-weight:700;background:var(--short-soft)}
+.foot{margin:0;font-size:.75rem;color:var(--short)}
+/* auto */
+table.req{border-collapse:separate;border-spacing:2px;font-size:.75rem;min-width:520px}
+table.req th{font-weight:400;color:var(--muted);padding:0 2px}
+table.req th.r{text-align:left;color:var(--fg);font-weight:700;white-space:nowrap}
+table.req input{width:34px;padding:4px 2px;text-align:center;font-size:.85rem}
+.opts{display:flex;flex-direction:column;gap:8px;font-size:.88rem}
+.opts label{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.opts input[type=number]{width:56px}
+.result{display:flex;flex-direction:column;gap:10px}
+.hours{display:flex;flex-direction:column;gap:5px;font-size:.8rem}
+.hours div{display:grid;grid-template-columns:84px 1fr 72px;gap:8px;align-items:center}
+.hours .cap{text-align:right;color:var(--muted)}
+.hours .bar i.full{background:var(--short)}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:10px 18px;border-radius:99px;font-weight:700;font-size:.88rem;z-index:20}
+.note{font-size:.75rem;color:var(--muted);margin:0}
+@media (prefers-reduced-motion:no-preference){.g-bar{transition:opacity .2s}}
+.tabs{grid-template-columns:repeat(4,1fr)}
+.tab{font-size:.72rem}
+.tab b{font-size:.9rem}
+/* skills */
+.rules{display:flex;flex-direction:column;gap:8px;font-size:.88rem}
+.rules label{display:flex;gap:8px;align-items:flex-start;cursor:pointer}
+.rules input{width:18px;height:18px;accent-color:var(--accent);margin-top:2px;flex:0 0 auto}
+.legend2{display:flex;gap:10px;flex-wrap:wrap;font-size:.75rem;color:var(--muted)}
+.lv{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:20px;border-radius:5px;font-size:.72rem;font-weight:700;padding:0 4px}
+.lv.l0{background:var(--ok);color:var(--muted)} .lv.l1{background:var(--over-soft);color:var(--over)}
+.lv.l2{background:var(--kitchen-soft);color:var(--kitchen)} .lv.l3{background:var(--fg);color:var(--bg)}
+.sk{border-top:1px solid var(--line)}
+.sk:first-child{border-top:0}
+.sk summary{list-style:none;cursor:pointer;display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;padding-block:10px}
+.sk summary::-webkit-details-marker{display:none}
+.sk summary .nm{font-weight:700}
+.sk summary .nm small{color:var(--muted);font-weight:400;margin-left:4px}
+.sk summary .tags{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end}
+.badge{font-size:.68rem;font-weight:700;padding:1px 6px;border-radius:99px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.badge.on{border-color:var(--accent);color:var(--accent)}
+.sk[open] summary{border-bottom:1px dashed var(--line)}
+.ed{display:flex;flex-direction:column;gap:10px;padding-block:10px 14px}
+.pos{display:grid;grid-template-columns:82px 1fr;gap:8px;align-items:center;font-size:.85rem}
+.pos .side{font-size:.68rem;color:var(--muted);display:block;line-height:1}
+.lvbtns{display:grid;grid-template-columns:repeat(4,1fr);gap:4px}
+.lvbtns button{font:inherit;font-size:.8rem;font-weight:700;padding:6px 0;border-radius:7px;border:1px solid var(--line);background:var(--bg);color:var(--muted);cursor:pointer}
+.lvbtns button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.toggles{display:flex;gap:8px;flex-wrap:wrap}
+.tgl{font:inherit;font-size:.82rem;font-weight:700;padding:6px 12px;border-radius:99px;border:1px solid var(--line);background:var(--bg);color:var(--muted);cursor:pointer}
+.tgl[aria-pressed="true"]{border-color:var(--accent);color:var(--accent);background:var(--over-soft)}
+.ngrow{display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:.82rem}
+.ngrow select{font-size:.85rem;padding:4px 6px}
+.ngchip{display:inline-flex;align-items:center;gap:2px;background:var(--short-soft);color:var(--short);border-radius:99px;padding:1px 4px 1px 8px;font-size:.78rem;font-weight:700}
+.ngchip button{font:inherit;border:0;background:transparent;color:inherit;cursor:pointer;padding:0 4px}
+/* ① LIFF風 */
+.card.slim{gap:8px;padding-block:10px}
+.liff{background:var(--surface);border:1px solid var(--line);border-radius:18px;overflow:hidden;max-width:440px;width:100%;margin-inline:auto}
+.liff-bar{background:var(--accent);color:var(--accent-ink);padding:10px 14px;display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
+.liff-bar small{opacity:.8;font-size:.7rem}
+.liff-body{padding:16px 14px;display:flex;flex-direction:column;gap:12px}
+.liff-head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.liff-head .hi{margin:0;font-family:var(--f-display);font-weight:700;font-size:1.15rem}
+.liff-head .lead{margin:0}
+.pill{font-size:.75rem;font-weight:700;padding:3px 10px;border-radius:99px;white-space:nowrap}
+.pill.ok{background:var(--kitchen-soft);color:var(--kitchen)} .pill.ng{background:var(--short-soft);color:var(--short)}
+.dl{margin:-4px 0 0;font-size:.78rem;color:var(--muted)}
+.box{background:var(--bg);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:6px}
+.box .eyebrow,.box .lead{margin:0}
+ul.pat{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+ul.pat li{display:flex;justify-content:space-between;padding-block:5px;border-top:1px solid var(--line);font-size:.9rem}
+ul.pat li:first-child{border-top:0}
+ul.pat li.we span{color:var(--short)}
+ul.pat b.off{color:var(--muted);font-weight:400}
+.acts{display:flex;flex-direction:column;gap:8px}
+.btn.big{padding:15px;font-size:1.05rem}
+.switch.keep{font-size:.85rem}
+.chat{display:flex;flex-direction:column;gap:6px}
+.bubble{background:var(--bg);border-radius:4px 16px 16px 16px;padding:12px 14px;display:flex;flex-direction:column;gap:6px;max-width:92%}
+.bubble p{margin:0}
+.bubble .ttl{font-weight:700;color:var(--kitchen);font-size:1rem}
+.bubble .small{font-size:.75rem;color:var(--muted)}
+.bubble ul.pat li{font-size:.85rem;padding-block:3px}
+.chat-note{margin:0;font-size:.72rem;color:var(--muted)}
+/* checks */
+.checks{display:flex;flex-direction:column;gap:8px}
+.chk-day{display:grid;grid-template-columns:52px 1fr;gap:8px;font-size:.82rem;align-items:start}
+.chk-day b{font-size:.82rem}
+.chk-day b.sat{color:var(--accent)} .chk-day b.sun{color:var(--short)}
+.chk-day ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:3px}
+.chk-day li{display:flex;gap:6px;align-items:baseline}
+.tag{font-size:.66rem;font-weight:700;padding:1px 6px;border-radius:4px;white-space:nowrap;background:var(--short-soft);color:var(--short)}
+.tag.w{background:var(--over-soft);color:var(--over)}
+.okline{color:var(--muted);font-size:.82rem}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>シフト作成デモ</h1>
+    <p>営業 10:00〜24:00 / スタッフ20名 / 11月第1週（サンプルデータ）</p>
+  </header>
+
+  <nav class="tabs" role="tablist">
+    <button class="tab" role="tab" aria-selected="true" data-tab="staff"><b>① 希望</b>スタッフ</button>
+    <button class="tab" role="tab" aria-selected="false" data-tab="mgr"><b>② シフト表</b>店長</button>
+    <button class="tab" role="tab" aria-selected="false" data-tab="auto"><b>③ 自動作成</b>叩き台</button>
+    <button class="tab" role="tab" aria-selected="false" data-tab="skill"><b>④ スキル</b>スタッフ管理</button>
+  </nav>
+
+  <!-- ① staff -->
+  <section class="panel" id="p-staff">
+    <div class="card slim">
+      <div class="who">
+        <label class="eyebrow" for="whoSel">デモ用：スタッフ切替</label>
+        <select id="whoSel"></select>
+      </div>
+      <div class="status"><span>提出状況（店長が見る数字）</span><span id="submitCount"></span></div>
+      <div class="bar"><i id="submitBar"></i></div>
+    </div>
+    <div class="liff">
+      <div class="liff-bar"><b>〇〇店 シフト提出</b><small>LINEで開いた画面のイメージ</small></div>
+      <div class="liff-body" id="liffBody"></div>
+    </div>
+  </section>
+
+  <!-- ② manager -->
+  <section class="panel" id="p-mgr" hidden>
+    <div class="daypick" id="dayPick"></div>
+    <div id="mgrBody"></div>
+  </section>
+
+  <!-- ③ auto -->
+  <section class="panel" id="p-auto" hidden>
+    <div class="card">
+      <div>
+        <h2>必要人数（1時間ごと）</h2>
+        <p class="lead">時間帯ごとにホール・キッチンの必要人数を設定。数字はタップで変更できます。</p>
+      </div>
+      <div class="scroll"><table class="req" id="reqTable"></table></div>
+      <div class="opts">
+        <label><input type="checkbox" id="weBoost" checked> 土日はピーク（11〜14時・17〜20時）+1人</label>
+        <label>1回の勤務 <input type="number" id="minLen" min="2" max="6" value="3"> 〜 <input type="number" id="maxLen" min="4" max="10" value="8"> 時間</label>
+      </div>
+    </div>
+    <div class="card">
+      <p class="note">④のスキルカードと店のルール（責任者・ピークのレベル3・締め・NG組み合わせ）を見ながら割り当てます。週の上限時間も守ります。</p>
+      <button class="btn" id="genBtn">叩き台を自動作成</button>
+      <div class="result" id="result"></div>
+    </div>
+    <button class="btn ghost" id="resetBtn">サンプルデータに戻す</button>
+  </section>
+
+  <!-- ④ skills -->
+  <section class="panel" id="p-skill" hidden>
+    <div class="card">
+      <div><h2>店のルール</h2><p class="lead">自動作成とチェックで使うルール。オフにすると無視します。</p></div>
+      <div class="rules" id="rules"></div>
+    </div>
+    <div class="card">
+      <div><h2>スキルカード</h2><p class="lead">スタッフごとにできるポジションとレベルを登録。名前をタップで編集できます。</p></div>
+      <div class="legend2"><span><span class="lv l0">−</span> できない</span><span><span class="lv l1">1</span> 教育中</span><span><span class="lv l2">2</span> 一人で可</span><span><span class="lv l3">3</span> 教えられる</span></div>
+      <div id="skillList"></div>
+    </div>
+  </section>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(function(){
+const H0=10, N=14;
+const DAYS=[["11/2","月"],["11/3","火"],["11/4","水"],["11/5","木"],["11/6","金"],["11/7","土"],["11/8","日"]];
+const isWE=d=>d>=5;
+const ROLE={hall:"ホール",kitchen:"キッチン"};
+const POS=[["reg","レジ","hall"],["drink","ドリンク","hall"],["dt","DT","hall"],["fry","フライヤー","kitchen"],["build","組立","kitchen"]];
+const STAFF=[
+ ["佐藤","hall","主婦",25],["鈴木","kitchen","フリーター",40],["高橋","both","学生",20],["田中","hall","学生",20],
+ ["伊藤","both","フリーター",40],["渡辺","kitchen","主婦",25],["山本","both","学生",20],["中村","hall","主婦",25],
+ ["小林","kitchen","学生",20],["加藤","both","フリーター",40],["吉田","hall","学生",20],["山田","kitchen","フリーター",40],
+ ["佐々木","both","主婦",25],["山口","hall","フリーター",40],["松本","kitchen","学生",20],["井上","both","学生",20],
+ ["木村","both","フリーター",40],["林","kitchen","主婦",25],["斎藤","both","学生",20],["清水","hall","フリーター",40]
+].map((a,i)=>({id:i,name:a[0],orig:a[1],type:a[2],cap:a[3]}));
+const BASE={hall:[2,3,3,3,2,2,2,3,3,3,2,2,1,1],kitchen:[2,3,3,3,2,2,2,3,3,3,2,2,1,1]};
+const PEAK=h=>(h>=11&&h<14)||(h>=17&&h<20);
+const RULES=[["leader","営業中は毎時間、時間帯責任者を1人以上"],["peak3","ピーク帯（11〜14時・17〜20時）はホール・キッチンそれぞれレベル3を1人以上"],["close","閉店（23〜24時）は締め作業ができる人を1人以上"],["ng","NG組み合わせは同じ時間に入れない"],["rookie","教育中（レベル1）の人はレベル3と同じ時間にする"]];
+
+function rng(seed){return function(){seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function sampleReq(){
+  const r=rng(42), req={};
+  STAFF.forEach(s=>{req[s.id]=DAYS.map((_,d)=>{
+    const x=r(), y=r();
+    if(s.type==="主婦") return !isWE(d)&&x<.75?[10,y<.5?15:16]:null;
+    if(s.type==="学生") return isWE(d)?(x<.75?(y<.5?[10,18]:[14,24]):null):(x<.6?(y<.5?[17,22]:[18,24]):null);
+    const opts=[[10,18],[14,24],[10,16],[16,24],[11,20]];
+    return x<.72?opts[Math.floor(y*opts.length)]:null;
+  })});
+  return req;
+}
+function sampleSkills(){
+  const r=rng(7), sk={};
+  STAFF.forEach(s=>{
+    const top=s.type==="フリーター"?3:s.type==="主婦"?(r()<.6?3:2):(r()<.25?2:1);
+    const pos={};
+    POS.forEach(([k,,side])=>{
+      const mine=s.orig==="both"||s.orig===side;
+      if(!mine){pos[k]=0;return}
+      let v=top-(r()<.35?1:0); if(s.orig==="both"&&side==="kitchen")v=Math.max(1,v-1);
+      if(k==="dt"&&s.type==="学生"&&v<2)v=0;
+      pos[k]=Math.max(0,Math.min(3,v));
+    });
+    sk[s.id]={pos,leader:s.type==="フリーター"||s.id===12,close:s.type!=="主婦"&&top>=2||s.type==="フリーター",cap:s.cap,ng:[]};
+  });
+  sk[3].ng=[10]; sk[10].ng=[3]; // 田中×吉田
+  return sk;
+}
+const UNSUB=[6,15]; // サンプルで未提出の人
+function fresh(){
+  const usual=sampleReq(), req={}, sub={};
+  STAFF.forEach(s=>{
+    sub[s.id]=!UNSUB.includes(s.id);
+    req[s.id]=sub[s.id]?usual[s.id].map(v=>v&&v.slice()):DAYS.map(()=>null);
+  });
+  req[0][2]=null; req[4][5]=[10,16]; // 今週だけ変えた人
+  return{usual,req,sub,skills:sampleSkills(),rules:{leader:true,peak3:true,close:true,ng:true,rookie:true},shifts:null,base:JSON.parse(JSON.stringify(BASE)),stale:false,notes:{}};
+}
+let state;
+try{const s=JSON.parse(localStorage.getItem("shiftdemo-v3")||"null");state=s&&s.req&&s.skills&&s.usual?s:fresh()}catch(e){state=fresh()}
+function save(){try{localStorage.setItem("shiftdemo-v3",JSON.stringify(state))}catch(e){}}
+
+const $=id=>document.getElementById(id);
+const SK=id=>state.skills[id];
+const lvl=(id,role)=>Math.max(0,...POS.filter(p=>p[2]===role).map(p=>SK(id).pos[p[0]]));
+const rolesOf=id=>["hall","kitchen"].filter(r=>lvl(id,r)>0);
+const isNG=(a,b)=>SK(a).ng.includes(b)||SK(b).ng.includes(a);
+function toast(m){const t=$("toast");t.textContent=m;t.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>t.hidden=true,1800)}
+const lvChip=(r,v)=>`<span class="chip ${r}">${ROLE[r]} ${v?"Lv"+v:"−"}</span>`;
+function markStale(){if(state.shifts)state.stale=true}
+
+/* tabs */
+document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>show(b.dataset.tab));
+function show(t){document.querySelectorAll(".tab").forEach(b=>b.setAttribute("aria-selected",b.dataset.tab===t));
+  ["staff","mgr","auto","skill"].forEach(k=>$("p-"+k).hidden=k!==t);
+  if(t==="staff")renderStaff(); if(t==="mgr")renderMgr(); if(t==="auto")renderAuto(); if(t==="skill")renderSkill(); window.scrollTo({top:0})}
+
+/* ① staff */
+$("whoSel").innerHTML=STAFF.map(s=>`<option value="${s.id}">${s.name}（${s.type}）${UNSUB.includes(s.id)?"・未提出":""}</option>`).join("");
+$("whoSel").value=String(UNSUB[0]);
+const hourOpts=(from,to,sel)=>{let o="";for(let h=from;h<=to;h++)o+=`<option value="${h}"${h===sel?" selected":""}>${h}:00</option>`;return o};
+const WEEK="11/2（月）〜11/8（日）", DEADLINE="10/29（木）23:59";
+let staffMode="home";
+const patList=p=>`<ul class="pat">${DAYS.map((d,i)=>`<li class="${isWE(i)?"we":""}"><span>${d[0]}（${d[1]}）</span><b class="${p[i]?"":"off"}">${p[i]?`${p[i][0]}:00〜${p[i][1]}:00`:"休み"}</b></li>`).join("")}</ul>`;
+const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
+function renderStaff(){
+  const id=+$("whoSel").value, s=STAFF[id], sub=state.sub[id], usual=state.usual[id], hasUsual=usual.some(Boolean);
+  const n=STAFF.filter(x=>state.sub[x.id]).length;
+  $("submitCount").textContent=`${n}人 / ${STAFF.length}人 提出済み`;$("submitBar").style.width=(n/STAFF.length*100)+"%";
+  const head=`<div class="liff-head"><div><p class="hi">${s.name}さん</p><p class="lead">${WEEK} の希望</p></div><span class="pill ${sub?"ok":"ng"}">${sub?"提出済み":"未提出"}</span></div>
+    <p class="dl">〆切 ${DEADLINE}　〆切までは何度でも修正できます</p>`;
+  let html="";
+  if(staffMode==="done"){
+    html=`<div class="chat"><div class="bubble"><p class="ttl">✓ 希望を受け付けました</p><p>${WEEK}</p>${patList(state.req[id])}<p class="small">〆切（${DEADLINE}）までは修正できます。</p></div><p class="chat-note">LINEのトークにも同じ内容が届きます</p></div>
+      <div class="acts"><button class="btn ghost" id="stEdit">内容を修正する</button><button class="btn ghost" id="stBack">トップに戻る</button></div>`;
+  }else if(staffMode==="edit"){
+    const base=sub?state.req[id]:(hasUsual?usual:DAYS.map(()=>null));
+    html=`${head}<div class="days" id="dayForm">${DAYS.map((d,i)=>{const v=base[i];const on=!!v;const a=v?v[0]:17,b=v?v[1]:22;
+      return `<div class="day"><div class="d${isWE(i)?" we":""}">${d[0]}<small>（${d[1]}）</small></div>
+        <label class="switch"><input type="checkbox" id="on${i}" ${on?"checked":""}>出勤可</label>
+        <div class="times${on?"":" off"}" id="tm${i}"><select id="s${i}" aria-label="開始">${hourOpts(10,23,a)}</select>〜<select id="e${i}" aria-label="終了">${hourOpts(11,24,b)}</select></div></div>`}).join("")}</div>
+      <label class="switch keep"><input type="checkbox" id="keepUsual">この内容を「いつもの勤務」にする</label>
+      <div class="acts"><button class="btn" id="submitBtn">この内容で提出する</button><button class="btn ghost" id="stBack">戻る</button></div>`;
+  }else{
+    html=head+(sub?`<div class="box"><p class="eyebrow">提出した内容</p>${patList(state.req[id])}</div>
+        <div class="acts"><button class="btn ghost" id="stEdit">内容を修正する</button></div>`
+      :hasUsual?`<div class="box"><p class="eyebrow">いつもの勤務</p>${patList(usual)}</div>
+        <div class="acts"><button class="btn big" id="stUsual">いつも通りで提出</button><button class="btn ghost" id="stEdit">今週は変える</button></div>`
+      :`<div class="box"><p class="lead">「いつもの勤務」が未登録です。入力した内容を次回から使えます。</p></div>
+        <div class="acts"><button class="btn big" id="stEdit">希望を入力する</button></div>`);
+  }
+  $("liffBody").innerHTML=html;
+  if(staffMode==="edit")DAYS.forEach((_,i)=>$("on"+i).onchange=e=>$("tm"+i).classList.toggle("off",!e.target.checked));
+  const on=(k,f)=>{if($(k))$(k).onclick=f};
+  on("stEdit",()=>{staffMode="edit";renderStaff()});
+  on("stBack",()=>{staffMode="home";renderStaff()});
+  on("stUsual",()=>submit(id,usual.map(v=>v&&v.slice()),false));
+  on("submitBtn",()=>{
+    const out=[];
+    for(let i=0;i<7;i++){if(!$("on"+i).checked){out.push(null);continue}
+      const a=+$("s"+i).value,b=+$("e"+i).value; if(b-a<2){toast(`${DAYS[i][0]}：2時間以上で入力してください`);return} out.push([a,b])}
+    submit(id,out,$("keepUsual").checked);
+  });
+}
+function submit(id,out,keep){
+  const changed=!state.sub[id]||!same(state.req[id],out);
+  state.req[id]=out; state.sub[id]=true; if(keep)state.usual[id]=out.map(v=>v&&v.slice());
+  if(changed)markStale(); save(); staffMode="done"; renderStaff(); window.scrollTo({top:0});
+  const o=$("whoSel").querySelector(`option[value="${id}"]`); if(o)o.textContent=`${STAFF[id].name}（${STAFF[id].type}）`;
+}
+$("whoSel").onchange=()=>{staffMode="home";renderStaff()};
+
+/* need & coverage */
+function need(d,role,slot){return state.base[role][slot]+($("weBoost").checked&&isWE(d)&&PEAK(H0+slot)?1:0)}
+function cover(d){const c={hall:Array(N).fill(0),kitchen:Array(N).fill(0)};(state.shifts?state.shifts[d]:[]).forEach(x=>{for(let h=x.s;h<x.e;h++)c[x.role][h-H0]++});return c}
+function dayShort(d){const c=cover(d);let s=0,t=0;["hall","kitchen"].forEach(r=>{for(let i=0;i<N;i++){const n=need(d,r,i);t+=n;s+=Math.max(0,n-c[r][i])}});return{s,t}}
+
+/* ③ generate */
+function generate(){
+  const R=state.rules;
+  const minL=Math.max(2,+$("minLen").value||3), maxL=Math.max(minL,+$("maxLen").value||8);
+  const used=STAFF.map(()=>0), shifts=DAYS.map(()=>[]);
+  [5,6,4,0,1,2,3].forEach(d=>{
+    const c={hall:Array(N).fill(0),kitchen:Array(N).fill(0)}, lead=Array(N).fill(0), v3={hall:Array(N).fill(0),kitchen:Array(N).fill(0)}, closer=[0], done=new Set();
+    for(;;){
+      let best=null;
+      STAFF.forEach(s=>{
+        const w=state.req[s.id][d], k=SK(s.id); if(!w||done.has(s.id))return;
+        const rem=k.cap-used[s.id]; if(rem<minL)return;
+        rolesOf(s.id).forEach(role=>{
+          const L3=lvl(s.id,role)===3, L1=lvl(s.id,role)===1;
+          for(let a=w[0];a+minL<=w[1];a++)for(let len=minL;len<=Math.min(maxL,w[1]-a,rem);len++){
+            const e=a+len;
+            if(R.ng&&shifts[d].some(x=>isNG(x.sid,s.id)&&x.s<e&&a<x.e))continue;
+            let hit=0,lh=0,ph=0,useful=0,alone=0,ch=0;
+            for(let h=a;h<e;h++){const i=h-H0;let u=false;
+              if(c[role][i]<need(d,role,i)){hit++;u=true}
+              if(R.leader&&k.leader&&lead[i]===0){lh++;u=true}
+              if(R.peak3&&L3&&PEAK(h)&&v3[role][i]===0&&need(d,role,i)>0){ph++;u=true}
+              if(R.rookie&&L1&&v3[role][i]===0)alone++;
+              if(u)useful++}
+            if(R.close&&k.close&&e===24&&closer[0]===0)ch=1;
+            if(!useful)continue;
+            const score=hit+1.2*lh+.8*ph+1.5*ch-.6*(len-useful)-.4*alone-used[s.id]/200;
+            if(!best||score>best.score)best={score,sid:s.id,role,s:a,e};
+          }});
+      });
+      if(!best||best.score<=0)break;
+      const k=SK(best.sid);
+      shifts[d].push({sid:best.sid,role:best.role,s:best.s,e:best.e});done.add(best.sid);used[best.sid]+=best.e-best.s;
+      for(let h=best.s;h<best.e;h++){const i=h-H0;c[best.role][i]++;if(k.leader)lead[i]++;if(lvl(best.sid,best.role)===3)v3[best.role][i]++}
+      if(k.close&&best.e===24)closer[0]++;
+    }
+  });
+  state.shifts=shifts;state.stale=false;save();
+}
+
+/* checks */
+function ranges(flags){const out=[];let st=-1;for(let i=0;i<=N;i++){if(i<N&&flags[i]){if(st<0)st=i}else if(st>=0){out.push(`${H0+st}〜${H0+i}時`);st=-1}}return out.join("、")}
+function checks(d){
+  const R=state.rules, list=state.shifts[d], out=[];
+  const at=i=>list.filter(x=>x.s<=H0+i&&H0+i<x.e);
+  const sh=dayShort(d).s; if(sh)out.push(["不足",`人手が足りない時間 合計${sh}人×h`,""]);
+  if(R.leader){const f=Array.from({length:N},(_,i)=>!at(i).some(x=>SK(x.sid).leader));const t=ranges(f);if(t)out.push(["責任者",`責任者がいない：${t}`,""])}
+  if(R.peak3)["hall","kitchen"].forEach(r=>{const f=Array.from({length:N},(_,i)=>PEAK(H0+i)&&!at(i).some(x=>x.role===r&&lvl(x.sid,r)===3));const t=ranges(f);if(t)out.push(["ピーク",`${ROLE[r]}にレベル3がいない：${t}`,""])});
+  if(R.close&&!list.some(x=>x.e===24&&SK(x.sid).close))out.push(["締め","閉店時に締め作業ができる人がいない",""]);
+  if(R.ng)list.forEach((a,i)=>list.slice(i+1).forEach(b=>{if(isNG(a.sid,b.sid)&&a.s<b.e&&b.s<a.e)out.push(["NG",`${STAFF[a.sid].name}さんと${STAFF[b.sid].name}さんが同じ時間`,""])}));
+  if(R.rookie)list.forEach(x=>{if(lvl(x.sid,x.role)!==1)return;const f=Array.from({length:N},(_,i)=>{const h=H0+i;return h>=x.s&&h<x.e&&!at(i).some(y=>y.role===x.role&&lvl(y.sid,x.role)===3)});const t=ranges(f);if(t)out.push(["教育中",`${STAFF[x.sid].name}さんの時間にレベル3がいない：${t}`,"w"])});
+  return out;
+}
+
+function renderAuto(){
+  let h=`<tr><th class="r"></th>${Array.from({length:N},(_,i)=>`<th>${H0+i}</th>`).join("")}</tr>`;
+  ["hall","kitchen"].forEach(r=>{h+=`<tr><th class="r">${ROLE[r]}</th>${state.base[r].map((v,i)=>`<td><input type="number" min="0" max="9" id="rq-${r}-${i}" value="${v}" aria-label="${ROLE[r]} ${H0+i}時"></td>`).join("")}</tr>`});
+  $("reqTable").innerHTML=h;
+  ["hall","kitchen"].forEach(r=>{for(let i=0;i<N;i++)$(`rq-${r}-${i}`).onchange=e=>{state.base[r][i]=Math.max(0,+e.target.value||0);markStale();save()}});
+  renderResult();
+}
+function renderResult(){
+  if(!state.shifts){$("result").innerHTML="";return}
+  let s=0,t=0,w=0;DAYS.forEach((_,d)=>{const x=dayShort(d);s+=x.s;t+=x.t;w+=checks(d).filter(c=>c[0]!=="不足").length});
+  const used=STAFF.map(()=>0);state.shifts.forEach(day=>day.forEach(x=>used[x.sid]+=x.e-x.s));
+  $("result").innerHTML=`<div class="kpis"><div class="kpi"><span>充足率</span><b>${Math.round((1-s/t)*100)}%</b></div>
+   <div class="kpi"><span>不足（人×時間）</span><b class="${s?"bad":""}">${s}</b></div><div class="kpi"><span>ルールの注意</span><b class="${w?"bad":""}">${w}件</b></div></div>
+   <button class="btn ghost" id="toMgr">② シフト表で確認・手直しする</button>
+   <div class="eyebrow">スタッフ別の週合計 / 上限</div>
+   <div class="hours">${STAFF.map(st=>`<div><span>${st.name}</span><span class="bar"><i class="${used[st.id]>=SK(st.id).cap?"full":""}" style="width:${Math.min(100,used[st.id]/SK(st.id).cap*100)}%"></i></span><span class="cap">${used[st.id]} / ${SK(st.id).cap}h</span></div>`).join("")}</div>`;
+  $("toMgr").onclick=()=>show("mgr");
+}
+$("genBtn").onclick=()=>{generate();renderResult();toast("叩き台を作成しました")};
+$("weBoost").onchange=()=>{if(state.shifts)renderResult()};
+$("resetBtn").onclick=()=>{state=fresh();save();renderStaff();renderAuto();toast("サンプルデータに戻しました")};
+
+/* ② manager */
+let selDay=5, mgrView="table";
+function lanes(list){const L=[];list.slice().sort((a,b)=>a.s-b.s||a.e-b.e).forEach(x=>{let i=L.findIndex(l=>l.end<=x.s);if(i<0){L.push({end:0,items:[]});i=L.length-1}L[i].items.push(x);L[i].end=x.e});return L}
+const hue=sid=>(sid*137)%360;
+function weekTable(d){
+  const ls=lanes(state.shifts[d]); while(ls.length<6)ls.push({items:[]});
+  const rows=ls.length+1, dcls=d===5?"sat":d===6?"sun":"";
+  const head=`<tr class="first"><th class="lab day ${dcls}" rowspan="${rows+1}">${DAYS[d][0]}<small>${DAYS[d][1]}</small></th>${Array.from({length:N},(_,i)=>`<th>${H0+i}</th>`).join("")}<th class="memo-h">備考</th></tr>`;
+  let body="";
+  ls.forEach((l,li)=>{let row="",h=H0;l.items.forEach(x=>{for(;h<x.s;h++)row+="<td></td>";
+      const st=STAFF[x.sid];
+      row+=`<td colspan="${x.e-x.s}" class="nm" style="--h:${hue(x.sid)}" title="${st.name} ${x.s}:00〜${x.e}:00（${ROLE[x.role]} Lv${lvl(x.sid,x.role)}${SK(x.sid).leader?"・責任者":""}）">＜${SK(x.sid).leader?"★":""}${st.name}＞</td>`;h=x.e});
+    for(;h<H0+N;h++)row+="<td></td>";
+    body+=`<tr>${row}${li===0?`<td class="memo" rowspan="${rows}"><textarea id="memo${d}" aria-label="${DAYS[d][0]}の備考" placeholder="例：シェイク分解">${(state.notes&&state.notes[d])||""}</textarea></td>`:""}</tr>`});
+  const c=cover(d);
+  body+=`<tr class="sum">${Array.from({length:N},(_,i)=>{const s=["hall","kitchen"].reduce((a,r)=>a+Math.max(0,need(d,r,i)-c[r][i]),0);return `<td class="${s?"sh":""}">${s?"−"+s:""}</td>`}).join("")}</tr>`;
+  return `<table class="wk">${head}${body}</table>`;
+}
+function checkCard(days){
+  const rows=days.map(d=>{const c=checks(d);if(!c.length)return "";const dc=d===5?"sat":d===6?"sun":"";
+    return `<div class="chk-day"><b class="${dc}">${DAYS[d][0]}（${DAYS[d][1]}）</b><ul>${c.map(x=>`<li><span class="tag ${x[2]}">${x[0]}</span><span>${x[1]}</span></li>`).join("")}</ul></div>`}).join("");
+  return `<div class="card"><div><h2>チェック</h2><p class="lead">④のルールとスキルカードをもとに確認しています。</p></div><div class="checks">${rows||'<p class="okline">ルール違反はありません。</p>'}</div></div>`;
+}
+const staleBox=()=>state.stale?`<div class="notice"><span>希望・必要人数・スキルが変わりました。作り直すと反映されます。</span><button class="btn ghost" id="regen">作り直す</button></div>`:"";
+function renderMgr(){
+  const vt=`<div class="seg" role="group"><button aria-pressed="${mgrView==="table"}" data-v="table">週間シフト表</button><button aria-pressed="${mgrView==="heat"}" data-v="heat">日別の過不足</button></div>`;
+  if(!state.shifts){$("dayPick").innerHTML="";$("mgrBody").innerHTML=`<div class="card"><div class="empty"><b>まだシフトがありません</b><span>③で希望とスキルをもとに叩き台を自動作成すると、ここにシフト表が表示されます。</span><button class="btn" id="goAuto">③ 自動作成へ</button></div></div>`;$("goAuto").onclick=()=>show("auto");return}
+  if(mgrView==="table"){
+    $("dayPick").innerHTML="";
+    $("mgrBody").innerHTML=`<div style="display:flex;flex-direction:column;gap:14px">${vt}${staleBox()}
+      <div class="card"><div class="row" style="justify-content:space-between"><h2>〇〇店 シフト表</h2><span class="lead">2026年 11/2〜11/8　★＝責任者</span></div>
+      <div class="scroll"><div class="sheet">${DAYS.map((_,d)=>weekTable(d)).join("")}</div></div>
+      <p class="foot">※シフト希望は毎週木曜日〆切です。（備考欄はタップして入力できます）</p></div>
+      ${checkCard([0,1,2,3,4,5,6])}</div>`;
+    DAYS.forEach((_,d)=>{const t=$("memo"+d);if(t)t.oninput=()=>{state.notes=state.notes||{};state.notes[d]=t.value;save()}});
+    bindMgr();return;
+  }
+  $("dayPick").innerHTML=DAYS.map((d,i)=>{const bad=checks(i).length>0;
+    return `<button class="${isWE(i)?"we":""}" aria-pressed="${i===selDay}" data-d="${i}">${bad?'<span class="dot"></span>':""}<b>${d[0]}</b>${d[1]}</button>`}).join("");
+  $("dayPick").querySelectorAll("button").forEach(b=>b.onclick=()=>{selDay=+b.dataset.d;renderMgr()});
+  const d=selDay, c=cover(d), x=dayShort(d), list=state.shifts[d].slice().sort((a,b)=>a.s-b.s||a.role.localeCompare(b.role));
+  let heat=`<tr><th class="r"></th>${Array.from({length:N},(_,i)=>`<th>${H0+i}</th>`).join("")}</tr>`;
+  ["hall","kitchen"].forEach(r=>{heat+=`<tr><th class="r">${ROLE[r]}</th>${c[r].map((v,i)=>{const n=need(d,r,i),df=v-n;
+    return `<td class="${df<0?"short":df>0?"over":""}" title="${H0+i}時 ${v}/${n}人">${df<0?df:df>0?"+"+df:"✓"}<small>${v}/${n}</small></td>`}).join("")}</tr>`});
+  const gantt=list.map(s=>{const st=STAFF[s.sid];return `<div class="g-row"><div class="g-name">${SK(s.sid).leader?"★":""}${st.name} <span class="lv l${lvl(s.sid,s.role)}">${lvl(s.sid,s.role)}</span></div>
+    <div class="g-track"><div class="g-bar ${s.role}" style="grid-column:${s.s-H0+1}/${s.e-H0+1}">${s.s}-${s.e}</div></div>
+    <button class="x" data-k="${state.shifts[d].indexOf(s)}" aria-label="${st.name}さんのシフトを外す">×</button></div>`}).join("");
+  $("mgrBody").innerHTML=`<div style="display:flex;flex-direction:column;gap:14px">${vt}${staleBox()}
+   <div class="card"><div class="row" style="justify-content:space-between"><h2>${DAYS[d][0]}（${DAYS[d][1]}）の過不足</h2><span class="lead">${list.length}人出勤</span></div>
+    <div class="kpis"><div class="kpi"><span>不足</span><b class="${x.s?"bad":""}">${x.s}人×h</b></div><div class="kpi"><span>必要</span><b>${x.t}人×h</b></div><div class="kpi"><span>充足率</span><b>${Math.round((1-x.s/x.t)*100)}%</b></div></div>
+    <div class="scroll"><table class="heat">${heat}</table></div>
+    <div class="legend"><span><i style="background:var(--short-soft)"></i>不足</span><span><i style="background:var(--ok)"></i>ちょうど</span><span><i style="background:var(--over-soft)"></i>多い</span><span>下段＝配置/必要</span></div></div>
+   ${checkCard([d])}
+   <div class="card"><div><h2>出勤者</h2><p class="lead">× でシフトを外すと、過不足とチェックがすぐ変わります。数字はその日のポジションのレベル。</p></div>
+    <div class="scroll"><div class="gantt"><div class="g-row g-head"><div></div><div class="g-track">${[10,12,14,16,18,20,22].map(h=>`<span>${h}</span>`).join("")}</div><div></div></div>${gantt||'<p class="note">この日の出勤者はいません</p>'}</div></div></div></div>`;
+  $("mgrBody").querySelectorAll(".x").forEach(b=>b.onclick=()=>{state.shifts[d].splice(+b.dataset.k,1);save();renderMgr();toast("シフトを外しました")});
+  bindMgr();
+}
+function bindMgr(){
+  $("mgrBody").querySelectorAll(".seg button").forEach(b=>b.onclick=()=>{mgrView=b.dataset.v;renderMgr()});
+  if($("regen"))$("regen").onclick=()=>{generate();renderMgr();toast("作り直しました")};
+}
+
+/* ④ skills */
+function renderSkill(){
+  $("rules").innerHTML=RULES.map(([k,t])=>`<label><input type="checkbox" id="rule-${k}" ${state.rules[k]?"checked":""}><span>${t}</span></label>`).join("");
+  RULES.forEach(([k])=>$("rule-"+k).onchange=e=>{state.rules[k]=e.target.checked;markStale();save()});
+  $("skillList").innerHTML=STAFF.map(s=>`<details class="sk" id="sk${s.id}"><summary></summary><div class="ed"></div></details>`).join("");
+  STAFF.forEach(s=>{paintSummary(s.id);paintEditor(s.id)});
+}
+function paintSummary(id){
+  const s=STAFF[id],k=SK(id);
+  $("sk"+id).querySelector("summary").innerHTML=`<span class="nm">${s.name}<small>${s.type}・週${k.cap}h</small></span>
+   <span class="tags">${["hall","kitchen"].map(r=>lvChip(r,lvl(id,r))).join("")}${k.leader?'<span class="badge on">★責任者</span>':""}${k.close?'<span class="badge on">締め</span>':""}${k.ng.length?'<span class="badge">NGあり</span>':""}</span>`;
+}
+function paintEditor(id){
+  const k=SK(id), el=$("sk"+id).querySelector(".ed");
+  el.innerHTML=POS.map(([p,label,side])=>`<div class="pos"><span>${label}<span class="side">${ROLE[side]}</span></span>
+     <div class="lvbtns" role="group" aria-label="${label}のレベル">${[0,1,2,3].map(v=>`<button data-p="${p}" data-v="${v}" aria-pressed="${k.pos[p]===v}">${v||"−"}</button>`).join("")}</div></div>`).join("")+
+   `<div class="toggles"><button class="tgl" data-t="leader" aria-pressed="${k.leader}">★ 時間帯責任者</button><button class="tgl" data-t="close" aria-pressed="${k.close}">締め作業</button></div>
+    <label class="ngrow">週の上限 <input type="number" min="0" max="60" value="${k.cap}" data-cap style="width:64px"> 時間</label>
+    <div class="ngrow">組ませない相手：${k.ng.map(n=>`<span class="ngchip">${STAFF[n].name}<button data-rm="${n}" aria-label="${STAFF[n].name}さんをNGから外す">×</button></span>`).join("")}
+      <select data-ng aria-label="NGの相手を追加"><option value="">＋追加</option>${STAFF.filter(o=>o.id!==id&&!k.ng.includes(o.id)).map(o=>`<option value="${o.id}">${o.name}</option>`).join("")}</select></div>`;
+  el.querySelectorAll(".lvbtns button").forEach(b=>b.onclick=()=>{k.pos[b.dataset.p]=+b.dataset.v;changed(id)});
+  el.querySelectorAll(".tgl").forEach(b=>b.onclick=()=>{k[b.dataset.t]=!k[b.dataset.t];changed(id)});
+  el.querySelector("[data-cap]").onchange=e=>{k.cap=Math.max(0,+e.target.value||0);changed(id)};
+  el.querySelector("[data-ng]").onchange=e=>{const o=+e.target.value;if(e.target.value==="")return;k.ng.push(o);if(!SK(o).ng.includes(id))SK(o).ng.push(id);changed(id);paintSummary(o);paintEditor(o)};
+  el.querySelectorAll("[data-rm]").forEach(b=>b.onclick=()=>{const o=+b.dataset.rm;k.ng=k.ng.filter(x=>x!==o);SK(o).ng=SK(o).ng.filter(x=>x!==id);changed(id);paintSummary(o);paintEditor(o)});
+}
+function changed(id){markStale();save();paintSummary(id);paintEditor(id)}
+
+renderStaff();
+})();
+</script>

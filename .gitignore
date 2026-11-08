@@ -1,0 +1,33 @@
+# 実データ・個人情報（スタッフの実名、LINEユーザーID）は絶対にコミットしない
+*.local.*
+/export/
+/private/
+reference/*.xlsx
+reference/*.xls
+reference/*.jpg
+reference/*.jpeg
+reference/*.png
+reference/*.pdf
+
+# スプレッドシートIDやトークンを書いたファイル
+web/js/config.local.js
+**/secrets.json
+
+# clasp
+# .clasp.json には parentId（スプレッドシートID）が入るので公開しない。
+# CLAUDE.md の「スプレッドシートIDを Git にコミットしない」に従う。
+# 代わりに .clasp.json.example を置いてある。新しいPCではそれをコピーして ID を入れる。
+# （scriptId 自体は秘密ではないが、1ファイルに同居しているので丸ごと除外する）
+gas/.clasp.json
+.clasprc.json
+
+# OS・エディタ
+.DS_Store
+Thumbs.db
+*.swp
+.vscode/
+.idea/
+
+# Node
+node_modules/
+npm-debug.log*

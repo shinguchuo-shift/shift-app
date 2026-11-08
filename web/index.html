@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>シフト提出</title>
+<link rel="stylesheet" href="css/app.css?v=6">
+<link rel="stylesheet" href="css/staff.css?v=3">
+</head>
+<body class="staff">
+
+<!-- 開発中だけ：誰として見るかを切り替える。LINE から開くと自分に決まるので要らなくなる -->
+<div class="devbar" id="devbar" hidden>
+  <label>画面を見る人
+    <select id="devWho"></select>
+  </label>
+  <span>LINE から開くと自分に決まります</span>
+</div>
+
+<div class="phone">
+  <div class="phone-top">
+    <span id="topStore">シフト提出</span>
+    <small>LINEで開いた画面のイメージ</small>
+  </div>
+  <div class="phone-body" id="body">
+    <div class="state" id="state">読み込んでいます…</div>
+  </div>
+</div>
+
+<script>
+// モジュールが動かないときに黙って止まらないようにする見張り（manager.html と同じ）
+(function () {
+  var state = document.getElementById('state');
+  function fail(t, b) {
+    if (!state || state.dataset.done === '1') return;
+    state.dataset.done = '1';
+    state.className = 'state err';
+    state.innerHTML = '<b>' + t + '</b><br><span style="color:var(--sub)">' + b + '</span>';
+  }
+  if (location.protocol === 'file:') {
+    fail('ファイルを直接開くと動きません',
+      'ターミナルで次を実行して、表示された URL を開いてください。<br><br>' +
+      '<code>cd shift-app-handoff/web &amp;&amp; python3 -m http.server 8765</code><br><br>' +
+      'そのあと <code>http://localhost:8765/index.html</code>');
+    return;
+  }
+  setTimeout(function () {
+    if (document.getElementById('state')) {
+      fail('読み込みが終わりません', '開発者ツールの Console を見てください。');
+    }
+  }, 25000);
+})();
+</script>
+<script type="module" src="js/staff.js?v=6"></script>
+</body>
+</html>

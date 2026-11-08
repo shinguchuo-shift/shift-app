@@ -1,0 +1,138 @@
+/* スタッフ画面。LINE の中で開く前提で、スマホ幅に寄せる。 */
+
+body.staff { background: #e9edf2; padding: 14px; }
+
+.devbar {
+  max-width: 420px; margin: 0 auto 12px; display: flex; gap: 10px;
+  align-items: center; flex-wrap: wrap;
+  background: #fef3c7; border: 1px solid #fcd34d; color: #78350f;
+  border-radius: 8px; padding: 8px 12px; font-size: 12px;
+}
+.devbar select { font: inherit; padding: 4px 7px; border-radius: 6px; border: 1px solid #d6b45f; }
+
+.phone {
+  max-width: 420px; margin: 0 auto; background: var(--card);
+  border-radius: 14px; overflow: hidden; box-shadow: 0 6px 24px rgba(16,20,26,.12);
+}
+.phone-top {
+  background: #2b5ea8; color: #fff; padding: 11px 15px;
+  display: flex; justify-content: space-between; align-items: baseline; gap: 10px;
+}
+.phone-top small { color: #c3d6f2; font-size: 10px; }
+.phone-body { padding: 15px; }
+
+/* 見出し */
+.hi { font-size: 17px; font-weight: 700; margin: 0; }
+.sub { color: var(--sub); font-size: 12px; margin: 2px 0 0; }
+.dl { font-size: 12px; color: var(--sub); margin: 10px 0 0;
+      background: #f4f6f9; border-radius: 7px; padding: 7px 10px; }
+
+.pill { font-size: 11px; padding: 3px 10px; border-radius: 999px; white-space: nowrap; }
+.pill.ok { background: #eefaf2; color: var(--ok); border: 1px solid #a7ddbd; }
+.pill.ng { background: #fff1f0; color: var(--err); border: 1px solid #f3b6b2; }
+
+.head-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+
+/* 2段階の案内 */
+.steps { display: flex; gap: 6px; margin: 13px 0; }
+.step {
+  flex: 1; text-align: center; font-size: 11px; padding: 7px 4px;
+  border-radius: 8px; background: #f1f4f8; color: var(--sub); line-height: 1.35;
+  border: 1px solid transparent; font-family: inherit; cursor: pointer;
+}
+.step:hover:not(.now):not(.off) { border-color: var(--accent); }
+.step.off { opacity: .45; cursor: default; }
+.step b { display: block; font-size: 12px; color: var(--ink); }
+.step.done { background: #eefaf2; color: var(--ok); }
+.step.done b { color: var(--ok); }
+.step.now { background: var(--accent); color: #dbe6ff; }
+.step.now b { color: #fff; }
+
+/* 予定のならび */
+.box { background: #f7f9fb; border-radius: 10px; padding: 11px 13px; margin: 12px 0; }
+.eyebrow { font-size: 11px; color: var(--sub); margin: 0 0 7px; font-weight: 600; }
+ul.pat { list-style: none; margin: 0; padding: 0; }
+ul.pat li {
+  display: flex; justify-content: space-between; align-items: baseline;
+  padding: 5px 0; border-bottom: 1px solid #e7ebef; font-size: 13px;
+}
+ul.pat li:last-child { border: 0; }
+ul.pat li.we span { color: var(--sat); }
+ul.pat li.sun span { color: var(--sun); }
+ul.pat b { font-variant-numeric: tabular-nums; }
+ul.pat b.off { color: #b9c0c7; font-weight: 400; }
+ul.pat b.chg { color: var(--accent); }
+ul.pat .tagc { font-size: 10px; color: var(--accent); margin-left: 6px; }
+
+/* 入力 */
+.days { display: flex; flex-direction: column; gap: 7px; margin: 12px 0; }
+.day {
+  display: grid; grid-template-columns: 54px 1fr; gap: 6px 9px; align-items: center;
+  border: 1px solid var(--line); border-radius: 9px; padding: 8px 10px;
+}
+.day .d { font-size: 13px; font-weight: 600; }
+.day .d small { display: block; font-weight: 400; color: var(--sub); font-size: 10px; }
+.day.we .d { color: var(--sat); }
+.day.sun .d { color: var(--sun); }
+.day .times { display: flex; gap: 6px; align-items: center; font-size: 13px; }
+.day .times.off { opacity: .35; pointer-events: none; }
+.day select { padding: 6px 7px; border: 1px solid var(--line-strong); border-radius: 7px;
+  font: inherit; font-size: 13px; }
+.day .sw { grid-column: 2; display: flex; gap: 6px; align-items: center; font-size: 12px; }
+
+/* 月の入力は曜日ごと */
+.dowbox { border: 1px solid var(--line); border-radius: 10px; padding: 11px 13px; margin: 12px 0; }
+
+.acts { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
+.btn.big { padding: 15px; font-size: 16px; }
+
+.chat { background: #eefaf2; border-radius: 10px; padding: 13px; margin: 10px 0; }
+.chat .ttl { font-weight: 700; color: var(--ok); margin: 0 0 7px; }
+.chat-note { font-size: 11px; color: var(--sub); text-align: center; margin: 8px 0 0; }
+.small { font-size: 11px; color: var(--sub); }
+.cal-sum { font-size: 12px; color: var(--sub); margin: 8px 0 0; }
+
+/* 月の入力：曜日でまとめて / 日ごとに直す の切り替え */
+.mtabs { display: flex; gap: 6px; margin: 12px 0 10px; }
+.mtab {
+  flex: 1; padding: 8px 6px; font: inherit; font-size: 12px; font-weight: 600;
+  border: 1px solid var(--line-strong); border-radius: 8px;
+  background: var(--card); color: var(--sub); cursor: pointer;
+}
+.mtab.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+/* カレンダー */
+.cal-head, .cal {
+  display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px;
+}
+.cal-head { margin: 8px 0 3px; }
+.cal-head span { text-align: center; font-size: 10px; color: var(--sub); }
+.cal-head .sat { color: var(--sat); }
+.cal-head .sun { color: var(--sun); }
+.cal-cell {
+  aspect-ratio: 1 / 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 1px;
+  border: 1px solid var(--line); border-radius: 7px;
+  background: var(--card); font: inherit; cursor: pointer; padding: 0;
+}
+.cal-cell.empty { border: 0; background: none; cursor: default; }
+.cal-cell .n { font-size: 11px; font-weight: 600; }
+.cal-cell .t { font-size: 9px; color: #b9c0c7; line-height: 1; }
+.cal-cell.on { background: #eef7ff; border-color: #aacdf0; }
+.cal-cell.on .t { color: var(--accent); }
+.cal-cell.sat .n { color: var(--sat); }
+.cal-cell.sun .n { color: var(--sun); }
+.cal-cell.sel { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+/* 日ごとの編集 */
+.dayedit {
+  margin-top: 11px; border: 1px solid var(--accent); border-radius: 10px;
+  padding: 11px 13px; background: #f7fbff;
+}
+.dayedit .times { display: flex; gap: 6px; align-items: center; margin-top: 6px; }
+.dayedit .times.off { opacity: .35; pointer-events: none; }
+.dayedit select {
+  padding: 6px 7px; border: 1px solid var(--line-strong); border-radius: 7px;
+  font: inherit; font-size: 13px;
+}
+.dayedit .sw { display: flex; gap: 7px; align-items: center; font-size: 13px; }

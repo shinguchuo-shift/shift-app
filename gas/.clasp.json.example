@@ -1,0 +1,13 @@
+{
+  "_comment": "このファイルをコピーして .clasp.json にし、2つのIDを入れる。.clasp.json は Git に入れない。",
+  "_scriptId": "Apps Script の「プロジェクトの設定」にあるスクリプトID",
+  "_parentId": "紐づくスプレッドシートのURLの /d/ と /edit の間の文字列",
+  "scriptId": "ここにスクリプトID",
+  "parentId": "ここにスプレッドシートID",
+  "rootDir": "",
+  "scriptExtensions": [".js", ".gs"],
+  "htmlExtensions": [".html"],
+  "jsonExtensions": [".json"],
+  "filePushOrder": [],
+  "skipSubdirectories": false
+}
