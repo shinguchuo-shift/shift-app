@@ -74,10 +74,10 @@ Messaging API チャネルを足せば、それまでの紐付けはそのまま
 
 ## 4. GitHub Pages ✅ 済（2026-11-08）
 
-- リポジトリ：https://github.com/73norimicchi-lang/shift-app （公開）
-- 公開URL：**https://73norimicchi-lang.github.io/shift-app/**
-  - スタッフ用：`https://73norimicchi-lang.github.io/shift-app/index.html`
-  - 店長用：`https://73norimicchi-lang.github.io/shift-app/manager.html`
+- リポジトリ：https://github.com/shinguchuo-shift/shift-app （公開）
+- 公開URL：**https://shinguchuo-shift.github.io/shift-app/**
+  - スタッフ用：`https://shinguchuo-shift.github.io/shift-app/index.html`
+  - 店長用：`https://shinguchuo-shift.github.io/shift-app/manager.html`
 - `web/` だけを公開するワークフローは `.github/workflows/pages.yml`。
   `main` に push すると自動で反映される（1〜2分）
 - **キャッシュ対策は自動**：JS/CSS の `?v=` をコミットハッシュに書き換えてから公開するので、
