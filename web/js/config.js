@@ -14,6 +14,13 @@
 export const GAS_URL =
   'https://script.google.com/macros/s/AKfycbx5lFeB_CnbDFoz80PFVckb-HGnvllbX_Ps0aAvDSwkdAIh8xEfCDv6jUAeLeWafRThmA/exec';
 
-/** LIFF ID。Phase 3 で LINE Developers で作ったら入れる。公開されても問題ない。 */
-export const LIFF_ID_STAFF = '';
-export const LIFF_ID_MANAGER = '';
+/**
+ * LIFF ID。公開されても問題ない値（LINE の公式ドキュメントにもそう書かれている）。
+ * 空にすると LIFF を通さず、ブラウザでそのまま開ける（開発中の確認用）。
+ *
+ * 登録先：LINEログインチャネル → LIFF タブ
+ *   シフト提出      → index.html
+ *   シフト作成（店長） → manager.html
+ */
+export const LIFF_ID_STAFF = '2012473249-yrLHA1fl';
+export const LIFF_ID_MANAGER = '2012473249-4aDhOvyt';

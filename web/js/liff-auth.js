@@ -23,6 +23,18 @@ function liffIdFor(kind) {
   return kind === 'manager' ? LIFF_ID_MANAGER : LIFF_ID_STAFF;
 }
 
+/**
+ * LIFF を通さずに開くか。
+ *  - 手元のパソコン（localhost）で動かしているとき
+ *  - URL に ?noliff=1 を付けたとき
+ * 公開されたページ（github.io）では必ず LIFF を通る。
+ */
+function skipLiff() {
+  const h = location.hostname;
+  if (h === 'localhost' || h === '127.0.0.1' || h === '') return true;
+  return new URLSearchParams(location.search).get('noliff') === '1';
+}
+
 /** SDK を1回だけ読み込む。 */
 function loadSdk() {
   if (window.liff) return Promise.resolve();
@@ -43,7 +55,7 @@ function loadSdk() {
  */
 export async function start(kind) {
   const id = liffIdFor(kind);
-  if (!id) return { enabled: false, context: null };   // 未設定なら素通り
+  if (!id || skipLiff()) return { enabled: false, context: null };
 
   await loadSdk();
   await liff.init({ liffId: id });
