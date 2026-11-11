@@ -148,3 +148,11 @@ ul.pat .tagc { font-size: 10px; color: var(--accent); margin-left: 6px; }
 .dbg .row span { text-align: right; word-break: break-all; font-weight: 600; }
 .dbg .ok { color: var(--ok); }
 .dbg .ng { color: var(--err); }
+
+/* 招待コードの入力 */
+.codein {
+  width: 100%; padding: 13px; font-size: 20px; text-align: center;
+  letter-spacing: .14em; font-weight: 700; text-transform: uppercase;
+  border: 1px solid var(--line-strong); border-radius: 9px; font-family: inherit;
+}
+.codein:focus { outline: 2px solid var(--accent); outline-offset: -1px; }

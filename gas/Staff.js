@@ -182,3 +182,72 @@ function meSubmit(req, p) {
 
   return { periodId: pid, rev: rev, days: (p.days || []).length };
 }
+
+/**
+ * 招待コードで、LINEアカウントとスタッフを結びつける。
+ *
+ * 初回だけ。店長が口頭か個別LINEで伝えたコードを入れてもらう。
+ * コードは総当たりを避けるため8桁英数。失敗は Log に残し、続けて失敗したら止める。
+ *
+ * @param p { inviteCode }
+ */
+function meLink(req, p) {
+  if (DEV_MODE) throw apiError('devMode', '開発用モードでは紐付けは使いません');
+
+  if (!req.idToken) throw apiError('noToken', 'LINEからログインしてください');
+  var sub = verifyIdToken_(req.idToken);
+
+  var code = String(p.inviteCode || '').trim().toUpperCase();
+  if (!code) throw apiError('badCode', '招待コードを入れてください');
+
+  // 立て続けの失敗を止める（同じLINEユーザーで5回まで）
+  var cache = CacheService.getScriptCache();
+  var key = 'link_ng_' + Utilities.base64Encode(
+    Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, sub));
+  var ng = Number(cache.get(key) || 0);
+  if (ng >= 5) {
+    throw apiError('tooMany', '間違いが続いたので、しばらく待ってからお試しください');
+  }
+
+  var staff = readTable('Staff');
+
+  // もう紐付いているなら、そのまま通す（コードを入れ直した人向け）
+  var already = staff.filter(function (s) { return s.line_user_id === sub; })[0];
+  if (already) return { staff: { id: already.staff_id, name: already.name }, already: true };
+
+  var hit = staff.filter(function (s) {
+    return s.active === true
+      && String(s.invite_code || '').trim().toUpperCase() === code;
+  })[0];
+
+  if (!hit) {
+    cache.put(key, String(ng + 1), 1800);           // 30分で忘れる
+    appendRowTo('Log', {
+      at: new Date(), type: 'error', staff_id: '',
+      detail: '招待コードが一致しません（' + (ng + 1) + '回目）'
+    });
+    throw apiError('badCode', '招待コードが違います。店長に確認してください');
+  }
+
+  // 期限切れ
+  if (hit.invite_expires_at) {
+    var limit = new Date(dateKey_(hit.invite_expires_at) + 'T23:59:59');
+    if (!isNaN(limit) && new Date() > limit) {
+      throw apiError('expired', '招待コードの期限が切れています。店長に再発行してもらってください');
+    }
+  }
+
+  // 書き込む：LINEユーザーIDを入れ、使った招待コードは消す
+  var sh = sheetOf('Staff');
+  var cols = keysOf('Staff');
+  sh.getRange(hit._row, cols.indexOf('line_user_id') + 1).setValue(sub);
+  sh.getRange(hit._row, cols.indexOf('invite_code') + 1).setValue('');
+  invalidateTable('Staff');
+  cache.remove(key);
+
+  appendRowTo('Log', {
+    at: new Date(), type: 'setup', staff_id: hit.staff_id, detail: 'LINEアカウントと紐付けました'
+  });
+
+  return { staff: { id: hit.staff_id, name: hit.name }, already: false };
+}

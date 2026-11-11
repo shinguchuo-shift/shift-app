@@ -66,11 +66,23 @@ async function init() {
     const el = $('state');
     if (!el) return;
     el.className = 'state err';
-    el.innerHTML = `<b>読み込めませんでした</b><br>`
-      + `<span style="color:var(--sub)">${esc(err.message)}</span>`
-      + `<div class="acts" style="justify-content:center;margin-top:14px">`
-      + `<button class="btn ghost" id="retry">もう一度試す</button></div>`;
-    $('retry').onclick = () => location.reload();
+
+    // 権限まわりは原因が分かるように出し分ける
+    const guide = {
+      needsLink: ['この画面を使う準備ができていません',
+        'スタッフ画面で招待コードを入れて、LINEアカウントを結びつけてください。'],
+      forbidden: ['権限がありません',
+        'この画面は店長だけが使えます。スタッフ一覧の「権限」が「店長」になっているか確認してください。'],
+      noToken: ['LINEからログインしてください',
+        'LINEのトークに貼ったリンクから開いてください。']
+    }[err.code];
+
+    el.innerHTML = guide
+      ? `<b>${esc(guide[0])}</b><br><span style="color:var(--sub)">${esc(guide[1])}</span>`
+      : `<b>読み込めませんでした</b><br><span style="color:var(--sub)">${esc(err.message)}</span>`
+        + `<div class="acts" style="justify-content:center;margin-top:14px">`
+        + `<button class="btn ghost" id="retry">もう一度試す</button></div>`;
+    if ($('retry')) $('retry').onclick = () => location.reload();
   } finally {
     clearInterval(tick);
   }

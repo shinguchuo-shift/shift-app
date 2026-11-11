@@ -13,7 +13,7 @@
 
 /** 書き込みを伴う action。ここに入れたものだけロックする。 */
 var WRITE_ACTIONS = {
-  'link': true, 'me.submit': true,
+  'me.link': true, 'me.submit': true,
   'mgr.saveShifts': true, 'mgr.saveRules': true, 'mgr.saveDemand': true,
   'mgr.saveStaff': true, 'mgr.saveUsual': true, 'mgr.saveNote': true,
   'mgr.openPeriod': true, 'mgr.setStatus': true, 'mgr.publish': true
@@ -59,6 +59,7 @@ function route(action, req) {
   switch (action) {
     case 'ping':            return { pong: true, devMode: DEV_MODE, at: new Date().toISOString() };
     case 'me':              return meLoad(req, p);
+    case 'me.link':         return meLink(req, p);
     case 'me.submit':       return meSubmit(req, p);
     case 'mgr.load':        return mgrLoad(req, p);
     case 'mgr.saveShifts':  return mgrSaveShifts(req, p);

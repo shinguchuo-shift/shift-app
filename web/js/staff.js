@@ -65,6 +65,8 @@ async function load() {
     render();
     setupDevBar();
   } catch (err) {
+    // まだLINEアカウントとスタッフが結びついていない人は、招待コードの画面へ
+    if (err.code === 'needsLink') return renderLink();
     $('body').innerHTML = `<div class="state err"><b>読み込めませんでした</b><br>
       <span class="small">${esc(err.message)}</span></div>`;
   } finally {
@@ -94,6 +96,54 @@ async function setupDevBar() {
 }
 
 /**
+ * 初回だけ：招待コードを入れて、LINEアカウントとスタッフを結びつける。
+ * コードは店長が口頭か個別のLINEで伝える。
+ */
+function renderLink(msg) {
+  $('topStore').textContent = 'シフト提出';
+  $('body').innerHTML = `
+    <p class="hi">はじめまして</p>
+    <p class="sub">店長から聞いた<b>招待コード</b>を入れてください。<br>
+      最初の1回だけです。</p>
+    <div class="box">
+      <label class="eyebrow" for="code">招待コード</label>
+      <input id="code" class="codein" type="text" inputmode="latin"
+             autocapitalize="characters" autocomplete="off"
+             placeholder="例：K7M2QX94" maxlength="12">
+      <p class="warn" id="codeMsg">${msg ? esc(msg) : ''}</p>
+    </div>
+    <div class="acts">
+      <button class="btn big" id="doLink">つなげる</button>
+    </div>
+    <p class="small" style="text-align:center">
+      コードが分からないときは店長に聞いてください。</p>`;
+
+  const input = $('code');
+  input.focus();
+  input.oninput = () => { $('codeMsg').textContent = ''; };
+  input.onkeydown = e => { if (e.key === 'Enter') $('doLink').click(); };
+
+  $('doLink').onclick = async () => {
+    const code = input.value.trim();
+    if (!code) return $('codeMsg').textContent = '招待コードを入れてください';
+
+    const btn = $('doLink');
+    btn.disabled = true;
+    btn.textContent = 'つないでいます…';
+    try {
+      const r = await callRetry('me.link', { inviteCode: code },
+        { idToken: liffAuth.getIdToken() });
+      toast(`${r.staff.name}さんとしてつながりました`);
+      await load();                       // つながったので本来の画面へ
+    } catch (err) {
+      $('codeMsg').textContent = err.message;
+      btn.disabled = false;
+      btn.textContent = 'つなげる';
+    }
+  };
+}
+
+/**
  * LIFF の動作チェック（?debug=1）。実機で何が取れて何が取れないかを見るためのもの。
  * Phase 3 の仕上げで消す。
  */
@@ -120,8 +170,14 @@ async function showDebug() {
     show('あなた', `${d.me.name}（${d.me.type}）`, true);
     show('対象の月', d.month ? d.month.id : '(なし)', !!d.month);
     show('対象の週', d.week ? d.week.id : '(なし)', !!d.week);
+    show('紐付け', '済み', true);
   } catch (err) {
-    show('エラー', (err.code ? err.code + ' / ' : '') + err.message, false);
+    if (err.code === 'needsLink') {
+      show('紐付け', 'まだ（招待コードの入力が要る）', false);
+      show('', '通常の画面を開くと、招待コードの入力が出ます。', undefined);
+    } else {
+      show('エラー', (err.code ? err.code + ' / ' : '') + err.message, false);
+    }
   }
 }
 
