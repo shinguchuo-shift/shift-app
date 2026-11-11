@@ -82,10 +82,16 @@ function verifyIdToken_(idToken) {
     });
   } catch (err) {
     // 通信そのものが失敗したとき（LINE側の不調・ネットワーク）
+    appendRowTo('Log', { at: new Date(), type: 'error', staff_id: '',
+      detail: 'LINEへの問い合わせに失敗: ' + String(err).slice(0, 300) });
     throw apiError('authTemporary', '認証に時間がかかっています。少し待ってもう一度お試しください');
   }
 
   var code = res.getResponseCode();
+  if (code !== 200) {
+    appendRowTo('Log', { at: new Date(), type: 'error', staff_id: '',
+      detail: 'IDトークン検証が ' + code + ': ' + res.getContentText().slice(0, 200) });
+  }
   if (code === 429 || code >= 500) {
     // 認証失敗と混ぜない。混ぜると「ログインできません」と出て原因が分からなくなる
     throw apiError('authTemporary', '混み合っています。少し待ってもう一度お試しください');
@@ -120,39 +126,24 @@ function apiError(code, message) {
  * この関数が外部通信とシートの両方に触るので、実行すると必要な権限がまとめて出る。
  */
 function authorize() {
-  var out = [];
+  // わざと try/catch を付けない。
+  // 権限が足りないときは、ここで止まって承認画面が出るのが正しい。
+  var name = SpreadsheetApp.getActive().getName();
 
-  // 1) シート
-  try {
-    out.push('シート: ' + SpreadsheetApp.getActive().getName());
-  } catch (e) {
-    out.push('シート: NG ' + e);
-  }
+  var res = UrlFetchApp.fetch('https://api.line.me/oauth2/v2.1/verify', {
+    method: 'post',
+    contentType: 'application/x-www-form-urlencoded',
+    payload: { id_token: 'dummy', client_id: 'dummy' },
+    muteHttpExceptions: true
+  });
 
-  // 2) 外部通信（LINE への問い合わせ）
-  try {
-    var res = UrlFetchApp.fetch('https://api.line.me/oauth2/v2.1/verify', {
-      method: 'post',
-      contentType: 'application/x-www-form-urlencoded',
-      payload: { id_token: 'dummy', client_id: 'dummy' },
-      muteHttpExceptions: true
-    });
-    // 400 が返れば通信できている（中身はわざと不正なので 400 が正解）
-    out.push('外部通信: OK（LINE から ' + res.getResponseCode() + ' が返りました）');
-  } catch (e) {
-    out.push('外部通信: NG ' + e);
-  }
+  CacheService.getScriptCache().put('authcheck', '1', 60);
+  var ch = PropertiesService.getScriptProperties().getProperty('LINE_LOGIN_CHANNEL_ID');
 
-  // 3) キャッシュとプロパティ
-  try {
-    CacheService.getScriptCache().put('authcheck', '1', 60);
-    var ch = PropertiesService.getScriptProperties().getProperty('LINE_LOGIN_CHANNEL_ID');
-    out.push('チャネルID: ' + (ch ? '設定済み' : '未設定'));
-  } catch (e) {
-    out.push('設定: NG ' + e);
-  }
+  var msg = 'シート: ' + name
+    + ' / 外部通信: LINE から ' + res.getResponseCode() + ' が返りました（400 が正解）'
+    + ' / チャネルID: ' + (ch ? '設定済み' : '未設定');
 
-  var msg = out.join('\n');
   console.log(msg);
   SpreadsheetApp.getActive().toast(msg, '権限の確認', 10);
   return msg;

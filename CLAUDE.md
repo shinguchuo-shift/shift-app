@@ -90,7 +90,9 @@ reference/           デモ
   **`import` の行にも付けること。** HTML の `<script src>` だけ変えても、その中の `import './api.js'` は古いまま読まれる。付けないと「直したのに直らない」で時間を失う。LIFF ブラウザのキャッシュはさらに読みにくい
 - **LIFF ブラウザに DevTools がない**。`window.onerror` を拾って画面に出す開発モードを早めに作る
 - **GAS の承認は「そのとき使っていた権限」の分しか降りない**。あとから外部通信などを足したら
-  `authorize()` を1回実行して承認し直す。`appsscript.json` に書くだけでは効かない
+  `authorize()` を1回実行して承認し直す。`appsscript.json` に書くだけでは効かない。
+  **確認用の関数を try/catch で囲まないこと。** 囲むと権限エラーを握りつぶして「実行完了」になり、
+  承認画面が出ないまま詰まる（実際に踏んだ）
 - **LIFF はエンドポイントURLより下の階層でしか動かない**。`index.html` を登録したなら `other.html` では
   `invalid url` で弾かれる。確認用の画面は別ファイルにせず、クエリで分ける（`index.html?debug=1`）
 - **GAS の例外は HTML のエラーページとして返る**。`doPost` 全体を try/catch し、`Log` に `error.stack` を書いてから `{ok:false}` を返す
@@ -143,7 +145,10 @@ reference/           デモ
   リポジトリ https://github.com/shinguchuo-shift/shift-app （公開）。`main` に push すると自動で反映
 - [x] **LIFF の受け口を用意**（`web/js/liff-auth.js`）。LIFF ID が未設定なら素通りするので、今までどおりブラウザでも動く
 - [ ] **次**：LINE Developers でプロバイダー＋LINEログインチャネル＋LIFF を作る（`docs/07` 手順3）
-- [ ] 本番用のスプレッドシートと GAS を別に作り、`DEV_MODE` を false にする
+- [x] **本番認証に切り替え済み**（2026-11-11）。`DEV_MODE = false`。IDトークンを LINE に問い合わせて検証し、
+  Staff の `line_user_id` で本人を特定する。初回は招待コード（`me.link`）で紐付け。
+  トークン無し・偽トークン・`devStaffId` でのなりすましは、すべて弾かれることを確認済み
+- [ ] **実データはまだ入れていない**（中身は架空のサンプル20人）。実名を入れる前に `06` #19 を確認する
 - [ ] Phase 1b（スロット単位へのリファクタ）
 
 ## 開発中だけの仕掛け（Phase 2 で消す）
