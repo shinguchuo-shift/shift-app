@@ -116,7 +116,15 @@ function doGet(e) {
         })
       });
     }
-    // サンプルデータを作り直す。開発中だけ。Phase 3 で消す
+    // ⚠ ここから下は確認用。データを消すものがあるので、本番では動かさない。
+    if (!DEV_MODE) {
+      return respond({
+        ok: false, error: 'devOnly',
+        message: '確認用の操作は、本番では使えません（DEV_MODE が false）'
+      });
+    }
+
+    // サンプルデータを作り直す。開発中だけ
     if (action === 'setup' && e.parameter.confirm === 'yes') {
       var removed = removeOldEnglishSheets_();
       setupAll();

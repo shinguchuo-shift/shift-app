@@ -52,7 +52,7 @@ function setupSampleData() {
       s.id, s.name, s.type,
       i === 0 ? 'manager' : 'staff',       // 1人目を店長役にしておく
       true, '',                             // active / line_user_id
-      makeInviteCode_(i), '',               // invite_code / invite_expires_at
+      newInviteCode(), '',               // invite_code / invite_expires_at
       s.capMin, s.leader, s.closer, s.duty,
       (s.ng || []).join(','), s.colorHue, ''
     ];
@@ -148,17 +148,6 @@ function fmtDate_(d) {
     + ('0' + d.getDate()).slice(-2);
 }
 
-/** 招待コード。紛らわしい文字（0/O、1/I/L）を除いた8桁。 */
-function makeInviteCode_(seed) {
-  var chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
-  var code = '';
-  for (var i = 0; i < 8; i++) {
-    // サンプルなので再現できる値でよい。実運用は Utilities.getUuid() 等を使う
-    seed = (seed * 1103515245 + 12345 + i * 7919) % 2147483647;
-    code += chars.charAt(Math.abs(seed) % chars.length);
-  }
-  return code;
-}
 
 /**
  * 日本語化する前の英語名のタブを片付ける。
