@@ -94,6 +94,18 @@ function respond(obj) {
 function doGet(e) {
   var action = e && e.parameter ? e.parameter.action : null;
   try {
+    // 設定が入っているかの確認（値そのものは返さない）。開発中だけ
+    if (action === 'config') {
+      var props = PropertiesService.getScriptProperties();
+      var ch = props.getProperty('LINE_LOGIN_CHANNEL_ID');
+      return respond({
+        ok: true,
+        devMode: DEV_MODE,
+        チャネルID: ch ? '設定済み（' + String(ch).length + '桁、末尾 ' + String(ch).slice(-4) + '）' : '未設定',
+        スクリプトプロパティの数: props.getKeys().length,
+        キー一覧: props.getKeys()
+      });
+    }
     if (action === 'status') {
       var ss = SpreadsheetApp.getActive();
       return respond({
