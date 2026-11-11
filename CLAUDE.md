@@ -89,6 +89,8 @@ reference/           デモ
 - **GitHub Pages は10分キャッシュする**。JS/CSS の読み込みに `?v=<コミットハッシュ>` を付ける。
   **`import` の行にも付けること。** HTML の `<script src>` だけ変えても、その中の `import './api.js'` は古いまま読まれる。付けないと「直したのに直らない」で時間を失う。LIFF ブラウザのキャッシュはさらに読みにくい
 - **LIFF ブラウザに DevTools がない**。`window.onerror` を拾って画面に出す開発モードを早めに作る
+- **GAS の承認は「そのとき使っていた権限」の分しか降りない**。あとから外部通信などを足したら
+  `authorize()` を1回実行して承認し直す。`appsscript.json` に書くだけでは効かない
 - **LIFF はエンドポイントURLより下の階層でしか動かない**。`index.html` を登録したなら `other.html` では
   `invalid url` で弾かれる。確認用の画面は別ファイルにせず、クエリで分ける（`index.html?debug=1`）
 - **GAS の例外は HTML のエラーページとして返る**。`doPost` 全体を try/catch し、`Log` に `error.stack` を書いてから `{ok:false}` を返す
