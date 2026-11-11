@@ -28,7 +28,13 @@ init();
 
 async function init() {
   // 開発中は URL の ?staff=s03 で誰として見るかを決められる
-  devStaffId = new URLSearchParams(location.search).get('staff') || null;
+  const q = new URLSearchParams(location.search);
+  devStaffId = q.get('staff') || null;
+
+  // ?debug=1 で、LIFF が何を返しているかをその場で見られる。
+  // この画面は index.html（＝エンドポイントURL）そのものなので、LIFF の
+  // 「redirectUri はエンドポイントURLで始まること」の決まりに引っかからない。
+  if (q.get('debug') === '1') return showDebug();
   try {
     const r = await liffAuth.start('staff');
     if (r.enabled) devStaffId = null;      // LIFF が効いていれば本人が決まる
@@ -85,6 +91,38 @@ async function setupDevBar() {
       location.href = u.toString();
     };
   } catch (e) { bar.hidden = true; }
+}
+
+/**
+ * LIFF の動作チェック（?debug=1）。実機で何が取れて何が取れないかを見るためのもの。
+ * Phase 3 の仕上げで消す。
+ */
+async function showDebug() {
+  const rows = [];
+  const show = (k, v, ok) => {
+    rows.push(`<div class="row"><b>${esc(k)}</b><span class="${
+      ok === undefined ? '' : ok ? 'ok' : 'ng'}">${
+      ok === undefined ? '' : (ok ? '✓ ' : '✕ ')}${esc(v)}</span></div>`);
+    $('body').innerHTML = `<p class="hi">LIFF 動作チェック</p>
+      <p class="sub">全部 ✓ なら本番に進めます。</p><div class="dbg">${rows.join('')}</div>`;
+  };
+
+  try {
+    const r = await liffAuth.start('staff');
+    show('LIFF を通ったか', r.enabled ? 'はい' : 'いいえ（localhost か ?noliff=1）', r.enabled);
+    if (r.enabled) {
+      show('どこから開いたか', (r.context && r.context.type) || '(不明)', true);
+      show('IDトークン', liffAuth.getIdToken() ? '取得できた' : '取得できない', !!liffAuth.getIdToken());
+      show('グループから開いたか', liffAuth.isGroup() ? 'はい' : 'いいえ', true);
+    }
+    const d = await call('me', {}, { devStaffId, idToken: liffAuth.getIdToken() });
+    show('GAS との通信', 'つながった', true);
+    show('あなた', `${d.me.name}（${d.me.type}）`, true);
+    show('対象の月', d.month ? d.month.id : '(なし)', !!d.month);
+    show('対象の週', d.week ? d.week.id : '(なし)', !!d.week);
+  } catch (err) {
+    show('エラー', (err.code ? err.code + ' / ' : '') + err.message, false);
+  }
 }
 
 /* ---------- 画面 ---------- */

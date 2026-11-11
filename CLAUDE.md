@@ -89,6 +89,8 @@ reference/           デモ
 - **GitHub Pages は10分キャッシュする**。JS/CSS の読み込みに `?v=<コミットハッシュ>` を付ける。
   **`import` の行にも付けること。** HTML の `<script src>` だけ変えても、その中の `import './api.js'` は古いまま読まれる。付けないと「直したのに直らない」で時間を失う。LIFF ブラウザのキャッシュはさらに読みにくい
 - **LIFF ブラウザに DevTools がない**。`window.onerror` を拾って画面に出す開発モードを早めに作る
+- **LIFF はエンドポイントURLより下の階層でしか動かない**。`index.html` を登録したなら `other.html` では
+  `invalid url` で弾かれる。確認用の画面は別ファイルにせず、クエリで分ける（`index.html?debug=1`）
 - **GAS の例外は HTML のエラーページとして返る**。`doPost` 全体を try/catch し、`Log` に `error.stack` を書いてから `{ok:false}` を返す
 - **GAS は速くない**。往復だけで約1.4秒かかる。画面には必ず経過を出すこと（何も変わらないと「固まった」と思われる）
 - **たくさんのシートを読むときは `prefetchTables()` を使う**。`getDataRange().getValues()` は1枚あたり約0.3秒で、10枚読むと3秒。

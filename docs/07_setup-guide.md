@@ -68,7 +68,17 @@ Messaging API チャネルを足せば、それまでの紐付けはそのまま
    - 店長用：エンドポイント `.../manager.html`、サイズ Full、スコープ `openid` `profile`
    - ※ `chat_message.write` は**付けない**。グループから開くと受付メッセージがグループに流れてしまうため（`03` 参照）
 6. LIFF ID を `web/js/config.js` に書く（LIFF ID は公開されても問題ない）
-7. **チャネルのステータスを「公開済み」にする。**
+7. **エンドポイントURLの決まりに注意。**
+   > redirectUriに指定したURLが［エンドポイントURL］に設定したURLで始まらない場合、ログイン処理に失敗し、エラー画面が表示されます。
+   > （[LIFF v2 APIリファレンス](https://developers.line.biz/ja/reference/liff/) liff.login）
+
+   > liff.init()メソッドはエンドポイントURLと完全に一致、もしくはエンドポイントURLよりも下の階層においてのみ動作します。
+
+   つまり **エンドポイントURLに登録したページ（とその下の階層）でしか LIFF は動かない**。
+   `index.html` を登録したなら、`liff-check.html` のような別ファイルでは
+   `access.line.me/.../error400?...invalid url...` になる。
+   確認用の画面を足すときは、**別ファイルを作らずクエリで分ける**（`index.html?debug=1` など）。
+8. **チャネルのステータスを「公開済み」にする。**
    作った直後は「開発中」で、Admin／Tester 権限の人しか使えない。
    ⚠ **「公開済み」から「開発中」には戻せない**と公式に明記されている。先にテスターで動作確認してから公開する
 
