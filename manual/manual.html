@@ -1,0 +1,433 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>シフトアプリ 説明書（オーナー・店長向け）</title>
+<!--
+  オーナー・店長向けの説明書。ヘッドレス Chrome で PDF にする（A4 縦）。
+  画像はすべて見本データ（架空の名前）。実名・LINEユーザーID・スプレッドシートIDは載せない。
+-->
+<style>
+  @page { size: A4; margin: 14mm 14mm 16mm; }
+  :root { --ink:#1f2328; --sub:#5b6470; --line:#d8dde3; --blue:#1d4fd8; --bg:#f3f5f8; --red:#b42318; --green:#1f7a3a; }
+  * { box-sizing: border-box; }
+  body { margin:0; color:var(--ink); font-family:"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif; font-size:10.5pt; line-height:1.7; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  h1 { font-size:24pt; margin:0 0 6mm; line-height:1.3; }
+  h2 { font-size:15pt; margin:0 0 4mm; padding:2mm 0 2mm 4mm; border-left:5px solid var(--blue); background:var(--bg); }
+  h3 { font-size:12pt; margin:6mm 0 2mm; }
+  p { margin:0 0 2.5mm; }
+  ul, ol { margin:0 0 3mm; padding-left:6mm; }
+  li { margin-bottom:1mm; }
+  .page { page-break-after: always; }
+  .page:last-child { page-break-after: auto; }
+  .sub { color:var(--sub); }
+  .small { font-size:9pt; }
+  b.blue { color:var(--blue); }
+  .note { border:1px solid var(--line); border-radius:3mm; padding:3mm 4mm; margin:3mm 0; background:#fff; }
+  .warn { border:1px solid #f1b8b2; background:#fff5f4; border-radius:3mm; padding:3mm 4mm; margin:3mm 0; }
+  .warn b:first-child { color:var(--red); }
+  .ok { border:1px solid #b8e0c4; background:#f2fbf5; border-radius:3mm; padding:3mm 4mm; margin:3mm 0; }
+  .btn { display:inline-block; padding:0 2mm; border:1px solid var(--blue); border-radius:1.5mm; color:var(--blue); font-weight:700; font-size:9.5pt; line-height:1.6; white-space:nowrap; }
+  .btn.fill { background:var(--blue); color:#fff; }
+  .menu { display:inline-block; padding:0 2mm; border:1px solid #888; border-radius:1.5mm; background:#f6f6f6; font-size:9.5pt; white-space:nowrap; }
+  code { font-family:Menlo,monospace; font-size:9pt; background:var(--bg); padding:0 1mm; border-radius:1mm; }
+  .url { font-family:Menlo,monospace; font-size:10pt; font-weight:700; }
+
+  /* スマホ画面（縦長）は文章と横並び */
+  .row { display:flex; gap:6mm; align-items:flex-start; margin:3mm 0; break-inside:avoid; }
+  .row .txt { flex:1; }
+  .phone { width:58mm; flex:none; border:1px solid var(--line); border-radius:3mm; overflow:hidden; }
+  .phone img { width:100%; display:block; }
+  .phones { display:flex; gap:5mm; justify-content:center; margin:3mm 0; break-inside:avoid; }
+  .phones figure { margin:0; width:56mm; }
+  .phones img { width:100%; display:block; border:1px solid var(--line); border-radius:3mm; }
+  figcaption { font-size:8.5pt; color:var(--sub); text-align:center; margin-top:1mm; }
+
+  /* パソコン画面は横幅いっぱい */
+  .wide { margin:3mm 0; break-inside:avoid; }
+  .wide img { width:100%; display:block; border:1px solid var(--line); border-radius:2mm; }
+  .wide.h { max-height:150mm; overflow:hidden; }
+
+  table { border-collapse:collapse; width:100%; margin:2mm 0 4mm; font-size:9.5pt; break-inside:avoid; }
+  th, td { border:1px solid var(--line); padding:1.5mm 2.5mm; text-align:left; vertical-align:top; }
+  th { background:var(--bg); white-space:nowrap; }
+
+  /* 流れ図 */
+  .flow { display:flex; align-items:stretch; gap:1.5mm; margin:4mm 0; }
+  .flow div { flex:1; border:1.5px solid var(--blue); border-radius:2.5mm; padding:2mm 1.5mm; text-align:center; font-size:9pt; line-height:1.45; }
+  .flow div b { display:block; font-size:10pt; color:var(--blue); }
+  .flow div.who-s { border-color:var(--green); } .flow div.who-s b { color:var(--green); }
+  .flow span { align-self:center; color:var(--sub); font-weight:700; }
+
+  .cover { height:250mm; display:flex; flex-direction:column; justify-content:center; }
+  .cover .tag { color:var(--blue); font-weight:700; font-size:12pt; margin-bottom:3mm; }
+  .toc { margin-top:12mm; font-size:11pt; }
+  .toc li { margin-bottom:1.5mm; }
+  .step { display:inline-block; width:6mm; height:6mm; border-radius:50%; background:var(--blue); color:#fff; text-align:center; line-height:6mm; font-size:9pt; font-weight:700; margin-right:1.5mm; }
+</style>
+</head>
+<body>
+
+<!-- ============ 表紙 ============ -->
+<section class="page cover">
+  <div class="tag">オーナー・店長向け</div>
+  <h1>シフトアプリ<br>説明書</h1>
+  <p class="sub">LINEで希望を集めて、叩き台を自動で作り、紙と同じ形のシフト表を出すアプリです。</p>
+  <ol class="toc">
+    <li>このアプリでできること・全体の流れ</li>
+    <li>使うリンク（スタッフ用・店長用）</li>
+    <li>最初の準備：スタッフをLINEとつなぐ</li>
+    <li>スタッフの希望の出し方</li>
+    <li>店長画面の使い方</li>
+    <li>毎月・毎週やること</li>
+    <li>スタッフが入った・辞めたとき</li>
+    <li>スプレッドシートで触ってよい所・ダメな所</li>
+    <li>困ったとき</li>
+  </ol>
+  <p class="small sub" style="margin-top:14mm">※ この説明書の画面に出てくる名前・時間はすべて見本です（実在の人とは関係ありません）。<br>2026年11月版（試験環境）</p>
+</section>
+
+<!-- ============ 1. 全体 ============ -->
+<section class="page">
+  <h2>1. このアプリでできること</h2>
+  <ul>
+    <li><b>スタッフ</b>は、グループLINEに貼ったリンクから<b>希望シフトを出す</b>。「いつも通りで提出」のボタン1つで終わるのが基本です。</li>
+    <li><b>店長</b>は、集まった希望とスキルをもとに<b>叩き台を自動作成</b>し、画面で手直しして<b>確定</b>します。</li>
+    <li>確定すると、スプレッドシートに<b>紙と同じ形のシフト表</b>が出ます。印刷やPDFはそこから。</li>
+  </ul>
+
+  <h3>全体の流れ</h3>
+  <div class="flow">
+    <div class="who-s"><b>① 月の暫定</b>スタッフが<br>1ヶ月分を<br>ざっくり出す</div><span>›</span>
+    <div class="who-s"><b>② 週の確認</b>毎週、その週の<br>希望を確かめて<br>出す</div><span>›</span>
+    <div><b>③ 自動作成</b>店長が<br>叩き台を<br>ボタン1つで作る</div><span>›</span>
+    <div><b>④ 手直し</b>店長が<br>画面で<br>直す</div><span>›</span>
+    <div><b>⑤ 確定</b>紙の形の<br>シフト表が<br>出る</div>
+  </div>
+  <p class="small sub">緑＝スタッフがやること、青＝店長がやること</p>
+
+  <h3>3つの道具</h3>
+  <table>
+    <tr><th>道具</th><th>だれが使う</th><th>何をする</th></tr>
+    <tr><td>スタッフ画面（LINEの中）</td><td>全スタッフ</td><td>希望シフトを出す・直す</td></tr>
+    <tr><td>店長画面（LINEの中／パソコン）</td><td>権限が「店長」の人だけ</td><td>提出状況を見る・自動作成・手直し・確定・月や週の受付</td></tr>
+    <tr><td>スプレッドシート</td><td>店長・オーナー</td><td>データの置き場所。スタッフの追加や退職、招待コードの発行は<b>上の「シフトアプリ」メニュー</b>から</td></tr>
+  </table>
+
+  <div class="note">
+    <b>LINE公式アカウントは使っていません。</b>普段のグループLINEにリンクを貼るだけで動きます。
+    アプリからスタッフに勝手にメッセージが送られることはありません（お知らせは店長がグループに書きます）。
+  </div>
+
+  <h2 style="margin-top:8mm">2. 使うリンク</h2>
+  <table>
+    <tr><th>スタッフ用</th><td><span class="url">https://liff.line.me/2012473249-yrLHA1fl</span><br><b>グループLINEに貼ってOK</b>。開いた人がだれかはLINEで判断するので、他の人の希望は見えません。</td></tr>
+    <tr><th>店長用</th><td><span class="url">https://liff.line.me/2012473249-4aDhOvyt</span><br><b>グループには貼らない</b>。スプレッドシートで権限が「店長」になっている人しか開けません。</td></tr>
+  </table>
+  <p class="small">どちらもスマホのLINEで開くのが基本です。パソコンのブラウザで開くとLINEのログイン画面が出るので、ログインすれば使えます（店長画面はパソコンのほうが見やすいです）。</p>
+  <p class="small sub">このリンクはスプレッドシートの「設定」シートにも書いてあります。</p>
+</section>
+
+<!-- ============ 3. 最初の準備 ============ -->
+<section class="page">
+  <h2>3. 最初の準備：スタッフをLINEとつなぐ</h2>
+  <p>スタッフ一人ひとりの「LINE」と「スプレッドシートの行」を結びつける作業です。<b>最初の1回だけ</b>。
+  そのために、一人ずつ違う<b>招待コード</b>（8けたの英数字）を配ります。</p>
+
+  <h3><span class="step">1</span>店長：スタッフを登録する</h3>
+  <ol>
+    <li>スプレッドシートを開き、上のメニューの <span class="menu">シフトアプリ</span> → <span class="menu">スタッフを追加</span></li>
+    <li>名前を入れて OK。<b>招待コードが表示されます</b>（「スタッフ」シートにも入ります）。</li>
+    <li>追加された行の <b>区分・担当業務・週の上限（時間）・責任者・締め作業</b> をプルダウンやチェックで直します。</li>
+  </ol>
+
+  <h3><span class="step">2</span>店長：招待コードを本人に渡す</h3>
+  <ul>
+    <li><span class="menu">招待コードの一覧を出す</span>：まだつないでいない人とコードが一覧で出ます。</li>
+    <li><span class="menu">配布用の紙を作る（印刷して配る）</span>：名前・コード・リンクが入った切り取り用の紙ができます。印刷して手渡しするのが一番安全です。</li>
+  </ul>
+  <div class="warn"><b>招待コードはグループLINEに貼らないでください。</b>
+  コードを知っている人なら、だれでもその人として希望を出せてしまいます。手渡し・口頭・個別のLINEで伝えてください。</div>
+
+  <h3><span class="step">3</span>スタッフ：リンクを開いてコードを入れる</h3>
+  <div class="row">
+    <div class="txt">
+      <ol>
+        <li>グループLINEのスタッフ用リンクを押す（初回は「許可する」を押す画面が出ます）</li>
+        <li>「はじめまして」の画面で、もらった招待コードを入れて <span class="btn fill">つなげる</span></li>
+        <li>つながると、次からはリンクを押すだけで自分の画面が開きます</li>
+      </ol>
+      <div class="note small">
+        ・コードは大文字小文字を気にしなくて大丈夫です<br>
+        ・<b>5回続けて間違えると30分入れなくなります</b>（いたずら防止）<br>
+        ・一度使ったコードは使えなくなります。つなぎ直すときは店長がコードを出し直します（7章）
+      </div>
+      <p class="small">つながったかどうかは、「スタッフ」シートの <b>LINEユーザーID</b> の列に何か入っているかで分かります（中身は気にしなくてOK、消さないでください）。</p>
+    </div>
+    <div class="phone"><img src="img/s1-link.jpg" alt="招待コードの入力画面"></div>
+  </div>
+
+  <div class="ok"><b>店長・オーナー自身も同じ手順でつなぎます。</b>そのうえで「スタッフ」シートの <b>権限</b> を「店長」にすると、店長用リンクが開けるようになります。</div>
+</section>
+
+<!-- ============ 4. スタッフの出し方 ============ -->
+<section class="page">
+  <h2>4. スタッフの希望の出し方</h2>
+  <p>希望は2段階です。<b>① 月の暫定</b>（月のはじめに1ヶ月分をざっくり）→ <b>② 週の確認</b>（毎週、その週を確かめる）。
+  スタッフに聞かれたときに説明できるよう、画面を載せておきます。</p>
+
+  <h3>① 月の暫定（月に1回）</h3>
+  <div class="phones">
+    <figure><img src="img/s4-month.jpg" alt=""><figcaption>最初の画面。いつも通りならボタン1つ</figcaption></figure>
+    <figure><img src="img/s5-month-dow.jpg" alt=""><figcaption>「曜日ごとに決める」：曜日でまとめて入れる</figcaption></figure>
+    <figure><img src="img/s6-month-cal.jpg" alt=""><figcaption>「日ごとに直す」：その日だけ変える</figcaption></figure>
+  </div>
+  <ul>
+    <li>「いつもの勤務」と同じでよければ <span class="btn fill">いつも通りで提出</span> で終わり。</li>
+    <li>違うときは <span class="btn">曜日ごとに決める</span> で曜日ごとに入れ、旅行などで違う日だけ <b>カレンダー</b> から直します。</li>
+    <li>時間は1時間単位。<b>高校生は22:00より後を選べません</b>（法律のため、アプリが止めます）。</li>
+  </ul>
+</section>
+
+<section class="page">
+  <h3 style="margin-top:0">② 週の確認（毎週）</h3>
+  <div class="row">
+    <div class="txt">
+      <p>月の暫定で出した内容が、その週の分だけ並んで出ます。</p>
+      <ul>
+        <li>このままでよければ <span class="btn fill">このままで提出</span> の1タップで終わり。</li>
+        <li>予定が変わったら <span class="btn">この週は変える</span> で直してから提出します。月の暫定から変えた日には印が付き、店長画面でも分かります。</li>
+        <li><b>〆切までは何度でも直せます。</b>出し直すと新しい内容に置きかわります。</li>
+        <li>〆切を過ぎても、店長が締め切るまでは受け付けます。締め切った後に出した分も記録はされます（店長が自動作成をやり直せば反映）。</li>
+      </ul>
+      <div class="note small">
+        画面の上の <b>① 月の暫定 / ② 週の確認</b> を押すと切りかえられます。<br>
+        受付中の期間がないときは「いまは受付期間ではありません」と出ます。
+      </div>
+    </div>
+    <div class="phone"><img src="img/s2-week.jpg" alt="週の確認の画面"></div>
+  </div>
+
+  <div class="row">
+    <div class="txt">
+      <h3 style="margin-top:0">出し終わると</h3>
+      <p>「希望を受け付けました」と、出した内容が出ます。画面はそのまま閉じて大丈夫です。</p>
+      <p class="small sub">提出したかどうかは、店長画面の「提出状況」でいつでも確認できます。</p>
+    </div>
+    <div class="phone"><img src="img/s3-done.jpg" alt="提出完了の画面"></div>
+  </div>
+</section>
+
+<!-- ============ 5. 店長画面 ============ -->
+<section class="page">
+  <h2>5. 店長画面の使い方</h2>
+  <p>店長用リンクを開くと、上に <b>対象週</b> の切りかえと、4つのタブが出ます。</p>
+  <table>
+    <tr><th>タブ</th><th>やること</th></tr>
+    <tr><td>提出状況</td><td>だれが出したか、だれがどの日の何時から何時まで出られるか</td></tr>
+    <tr><td>シフト表</td><td>紙と同じ形の週間シフト表。ここで手直しして、確定する</td></tr>
+    <tr><td>自動作成</td><td>叩き台をボタン1つで作る。必要人数の確認</td></tr>
+    <tr><td>スキル</td><td>店のルール、<b>月を開く・週の受付を開け閉めする</b>、スタッフのスキル一覧</td></tr>
+  </table>
+
+  <h3>提出状況</h3>
+  <div class="wide h" style="max-height:118mm"><img src="img/m1-sub.jpg" alt="提出状況タブ"></div>
+  <ul>
+    <li>上の数字で「何人出したか」。<b>未提出の人</b>は赤い札で出るので、声をかけてください。</li>
+    <li>「出された希望」の表で、全員の希望を1週間分まとめて見られます。一番下の行は<b>その日に出られる人数</b>。</li>
+    <li>右の「合計」が赤いのは、希望の合計が<b>週の上限（時間）を超えている</b>人です（自動作成は上限を超えないように入れます）。</li>
+  </ul>
+</section>
+
+<section class="page">
+  <h3 style="margin-top:0">自動作成</h3>
+  <div class="wide"><img src="img/m6-auto.jpg" alt="自動作成タブ"></div>
+  <ul>
+    <li><span class="btn fill">叩き台を自動作成</span> を押すと、希望・スキル・必要人数・ルールをもとに一瞬で叩き台ができます。</li>
+    <li><b>充足率</b>＝必要人数をどれだけ埋められたか。<b>不足</b>＝足りない人数×時間の合計。</li>
+    <li>作ったら <span class="btn fill">シフト表で見る</span> で中身を確認し、<span class="btn">保存する</span> で残します。</li>
+    <li>下の <b>必要人数</b> は時間帯ごとのホール・キッチンの人数です。土日のピークは自動で+1人します。<br>
+      <span class="small sub">変えたいときはスプレッドシートの「必要人数」シートを直します（画面からの編集は今後追加予定）。</span></li>
+  </ul>
+  <div class="warn"><b>もう一度「叩き台を自動作成」を押すと、手直しした分は作り直されます。</b>手直しを始めたら、作り直す前に本当にいいか考えてから押してください。</div>
+</section>
+
+<section class="page">
+  <h3 style="margin-top:0">シフト表（紙の形）</h3>
+  <div class="wide"><img src="img/m2-sheet.jpg" alt="シフト表タブ" style="max-height:200mm; width:auto; margin:0 auto;"></div>
+  <ul>
+    <li>1日ごとに、横が時刻（8〜24時）、バーが1人の勤務です。<b>★は時間帯責任者</b>。</li>
+    <li>各日の一番下の赤い <b>−1 / −2</b> は、その時間に<b>人が足りない数</b>です。</li>
+    <li>右の欄は<b>備考</b>（棚卸しなど）。</li>
+  </ul>
+</section>
+
+<section class="page">
+  <h3 style="margin-top:0">手直しのしかた</h3>
+  <p><b>バーを押す</b>と、その人の時間を変えたり外したりできます。</p>
+  <div class="wide" style="width:82%;margin-left:auto;margin-right:auto"><img src="img/m4-bar.jpg" alt="バーを押したところ"></div>
+  <ul>
+    <li>開始・終了を選び直して <span class="btn fill">この内容にする</span>。ホール／キッチンの切りかえもここ。</li>
+    <li><span class="btn" style="color:var(--red);border-color:var(--red)">外す</span> でその日のシフトから外します。</li>
+    <li>上に出る「希望：10:00〜19:00」が本人の希望です。希望の外に入れると、バーに<b>赤枠と「!」</b>が付きます。</li>
+  </ul>
+
+  <p style="margin-top:4mm"><b>空いているマスを押す</b>と、その日のその時間に人を入れられます。</p>
+  <div class="wide" style="width:82%;margin-left:auto;margin-right:auto"><img src="img/m5-add.jpg" alt="空きマスを押したところ"></div>
+  <ul>
+    <li>その日に<b>希望を出している人</b>が出ます。押すとその時間から3時間で入ります（時間はあとでバーを押して直せます）。</li>
+    <li>「上限いっぱい」と出ている人は、入れると週の上限を超えます。</li>
+    <li>希望を出していない人を入れたいときは「希望を出していない人も出す」にチェック。</li>
+    <li>自動作成を使わずに一から組みたいときは、シフト表の下の <span class="btn">全部消して手で組む</span>。</li>
+  </ul>
+</section>
+
+<section class="page">
+  <h3 style="margin-top:0">チェックと確定</h3>
+  <div class="wide"><img src="img/m3-checks.jpg" alt="チェックと確定"></div>
+  <ul>
+    <li>シフト表の下の <b>チェック</b> に、ルールに合っていない所が日ごとに出ます（人手が足りない時間、責任者がいない時間など）。日付を押すと中身が開きます。</li>
+    <li><b>要対応</b>は直したほうがいいもの、<b>注意</b>は気にかけておくもの。0にしないと確定できないわけではありません。</li>
+    <li>途中で終わるときは <span class="btn">保存する</span>。次に開いたとき続きから。</li>
+    <li>できあがったら <span class="btn fill">確定してシフト表を出力</span>。スプレッドシートに <b>「シフト表_（週の初日）」</b> というシートが紙と同じ形でできます。印刷・PDFはそのシートから（ファイル → 印刷）。</li>
+  </ul>
+  <div class="note small">
+    確定したシフト表をスタッフに知らせるのは、今のところ<b>印刷して貼る</b>か、<b>PDFや写真をグループLINEに送る</b>方法です（スタッフ画面で確定シフトを見る機能は今後追加予定）。<br>
+    同じ週をもう一度確定すると、シフト表のシートは作り直されます。
+  </div>
+
+</section>
+
+<section class="page">
+  <h3 style="margin-top:0">スキル（ルールと人）</h3>
+  <div class="wide h" style="max-height:150mm"><img src="img/m7-skill.jpg" alt="スキルタブ"></div>
+  <ul>
+    <li><b>店のルール</b>：チェックを外すと、自動作成とチェックの両方でそのルールを見なくなります。変えたら <span class="btn">ルールを保存</span>。</li>
+    <li><b>対象の月と週</b>：月を開く・週の受付を開け閉めする所です（次の章）。</li>
+    <li><b>スキルカード</b>：スタッフごとの担当業務・区分・週の上限・責任者・締め作業の一覧。直すときはスプレッドシートの「スタッフ」シートで。</li>
+  </ul>
+</section>
+
+<!-- ============ 6. 毎月・毎週 ============ -->
+<section class="page">
+  <h2>6. 毎月・毎週やること</h2>
+
+  <h3>毎月（前の月の終わりごろ）</h3>
+  <ol>
+    <li>店長画面の <b>スキル</b> タブ →「対象の月と週」で月を選んで <span class="btn fill">この月を開く</span></li>
+    <li>その月の<b>月の暫定</b>がすぐ<b>受付中</b>になり、その月の<b>週</b>もまとめて作られます（週はまだ準備中）。</li>
+    <li>グループLINEで「◯月の暫定シフトを出してください」と声をかける。〆切は<b>前の月の末日</b>です。</li>
+  </ol>
+  <p class="small sub">同じ月を2回開くことはできません（「もう作られています」と出ます）。</p>
+
+  <h3>毎週</h3>
+  <table>
+    <tr><th style="width:28mm">いつ</th><th>やること</th></tr>
+    <tr><td>受付を始める</td><td>上の <b>対象週</b> で次の週を選び、スキルタブの <span class="btn">受付中にする</span>。グループLINEで声かけ。</td></tr>
+    <tr><td>〆切（木曜）</td><td>提出状況で未提出の人に声をかける。<br><span class="small sub">〆切の曜日は「設定」シートの deadline_dow（0=月 … 3=木 … 6=日）で変えられます。</span></td></tr>
+    <tr><td>〆切のあと</td><td><span class="btn">締め切る</span> → 自動作成 → 手直し → <span class="btn fill">確定してシフト表を出力</span></td></tr>
+    <tr><td>確定したら</td><td>「シフト表_◯◯」シートを印刷して貼る／PDFにしてグループLINEへ</td></tr>
+  </table>
+
+  <h3>状態の見方（対象週の横に出ます）</h3>
+  <table>
+    <tr><th>準備中</th><td>作っただけ。スタッフはまだ出せない</td></tr>
+    <tr><th>受付中</th><td>スタッフが希望を出せる</td></tr>
+    <tr><th>締切後</th><td>店長が締め切った。シフトを組む段階</td></tr>
+    <tr><th>確定済み</th><td>シフト表を出力した</td></tr>
+  </table>
+
+  <div class="note">
+    <b>グループLINEへの声かけ文の例</b><br>
+    「11月9日〜15日のシフト希望を、木曜23:59までにお願いします。いつも通りなら1タップで終わります → （スタッフ用リンク）」
+  </div>
+</section>
+
+<!-- ============ 7. 入れ替え ============ -->
+<section class="page">
+  <h2>7. スタッフが入った・辞めたとき</h2>
+  <p>人の入れ替えは、スプレッドシートの <span class="menu">シフトアプリ</span> メニューから行います。<b>行を手で消したり、手で足したりしないでください。</b></p>
+  <table>
+    <tr><th style="width:52mm">こんなとき</th><th>メニュー</th><th>何が起きるか</th></tr>
+    <tr><td>新しい人が入った</td><td><span class="menu">スタッフを追加</span></td><td>行が1つ増え、招待コードが出る。区分などを直してからコードを渡す（3章）</td></tr>
+    <tr><td>辞めた</td><td><span class="menu">退職にする（選んだ行）</span></td><td>これから先のシフトに入らなくなる。LINEとのつながりも外れる。<b>行は消えない</b>ので過去のシフトはそのまま</td></tr>
+    <tr><td>辞めた人が戻ってきた</td><td><span class="menu">復帰させる（選んだ行）</span></td><td>在籍に戻り、新しい招待コードが出る</td></tr>
+    <tr><td>機種変更・LINEを作り直した<br>コードをなくした</td><td><span class="menu">招待コードを発行し直す（選んだ行）</span></td><td>新しいコードが出る。前のつながりは外れるので、本人にもう一度つないでもらう</td></tr>
+    <tr><td>だれがまだつないでいないか見たい</td><td><span class="menu">招待コードの一覧を出す</span></td><td>未接続の人とコードの一覧</td></tr>
+    <tr><td>コードを紙で配りたい</td><td><span class="menu">配布用の紙を作る</span></td><td>切り取り用の紙のシートができる</td></tr>
+    <tr><td>プルダウンが消えた・効かない</td><td><span class="menu">入力のプルダウンを整える</span></td><td>決まった言葉しか入らないプルダウンを付け直す</td></tr>
+  </table>
+  <p class="small">「（選んだ行）」と付いているものは、先に<b>「スタッフ」シートでその人の行のどこかを選んでから</b>メニューを押します。</p>
+
+  <div class="ok"><b>見本の名前を本当の名前に書きかえるのはOKです。</b>「スタッフ」シートの名前の列を直すだけで、つながりはそのまま残ります。
+  ただし、見本の人は架空なので、本番で使うときは区分や週の上限も実際の内容に直してください。</div>
+</section>
+
+<!-- ============ 8. スプレッドシート ============ -->
+<section class="page">
+  <h2>8. スプレッドシートで触ってよい所・ダメな所</h2>
+  <div class="warn"><b>どのシートも、1行目（見出し）は書きかえないでください。</b>アプリは見出しの名前で列を探しています。シート名を変えるのもダメです。</div>
+
+  <h3>「スタッフ」シート</h3>
+  <table>
+    <tr><th>列</th><th>触ってよい？</th><th>入れるもの</th></tr>
+    <tr><td>名前</td><td>○</td><td>シフト表に出る名前</td></tr>
+    <tr><td>区分</td><td>○</td><td>社員／主婦／大学生／高校生（プルダウン）。高校生は22時までしか入らない</td></tr>
+    <tr><td>権限</td><td>○</td><td>スタッフ／店長（プルダウン）。店長にすると店長画面が開ける</td></tr>
+    <tr><td>週の上限（時間）</td><td>○</td><td>1週間に入れる最大の時間（例：20）</td></tr>
+    <tr><td>責任者・締め作業</td><td>○</td><td>チェックを入れる</td></tr>
+    <tr><td>担当業務</td><td>○</td><td>ホール／キッチン／両方／研修中（プルダウン）</td></tr>
+    <tr><td>組ませない相手</td><td>○</td><td>同じ時間に入れたくない人のスタッフID。複数ならカンマ区切り（例：<code>s03,s07</code>）</td></tr>
+    <tr><td>色・メモ</td><td>○</td><td>色はシフト表のバーの色（0〜359の数）。メモは自由</td></tr>
+    <tr><td>在籍</td><td>△</td><td>メニューの「退職にする／復帰させる」を使う</td></tr>
+    <tr><td>招待コード</td><td>△</td><td>メニューで出す。手で書かない</td></tr>
+    <tr><td>スタッフID・LINEユーザーID</td><td>×</td><td><b>触らない</b>。消すとその人がつながらなくなる</td></tr>
+  </table>
+
+</section>
+
+<section class="page">
+  <h3 style="margin-top:0">ほかのシート</h3>
+  <table>
+    <tr><th>シート</th><th>触ってよい？</th><th>内容</th></tr>
+    <tr><td>いつもの勤務</td><td>○</td><td>スタッフごとの曜日別のいつもの時間。月の暫定の最初の値になる</td></tr>
+    <tr><td>必要人数</td><td>○</td><td>平日・土日の、時間ごとのホール・キッチンの人数</td></tr>
+    <tr><td>備考</td><td>○</td><td>日付と備考（棚卸しなど）。シフト表の右の欄に出る</td></tr>
+    <tr><td>設定</td><td>△</td><td>店名・〆切の曜日・シフト表の注意書きなど。<b>「値」の列だけ</b>直す</td></tr>
+    <tr><td>ルール</td><td>△</td><td>店長画面のスキルタブから変えるのがおすすめ</td></tr>
+    <tr><td>期間・提出・希望・シフト・ログ</td><td>×</td><td>アプリが書きこむ所。<b>見るのはOK、直したり行を消したりしない</b></td></tr>
+    <tr><td>シフト表_◯◯</td><td>○</td><td>確定で出た紙の形の表。印刷用なので自由に直してOK（アプリには戻りません）</td></tr>
+  </table>
+</section>
+
+<!-- ============ 9. 困ったとき ============ -->
+<section class="page">
+  <h2>9. 困ったとき</h2>
+  <table>
+    <tr><th style="width:62mm">こんなとき</th><th>こうする</th></tr>
+    <tr><td>スタッフ画面で「招待コードの入力が必要です」と出る</td><td>まだつないでいない人です。招待コードを渡して入れてもらう（3章）</td></tr>
+    <tr><td>「招待コードが違います」と出る</td><td>コードの打ち間違い、または発行し直す前の古いコード。<span class="menu">招待コードの一覧を出す</span> で今のコードを確かめる</td></tr>
+    <tr><td>「間違いが続いたので、しばらく待ってからお試しください」と出る</td><td>コードを5回間違えたため。30分待ってからもう一度</td></tr>
+    <tr><td>店長用リンクを開くと「権限がありません」と出る</td><td>「スタッフ」シートで、その人の権限が「店長」になっているか確かめる。そもそもLINEとつないでいるか（LINEユーザーIDの列）も確認</td></tr>
+    <tr><td>機種変更したら自分の画面が出なくなった</td><td>LINEが変わるとつながりが切れることがあります。<span class="menu">招待コードを発行し直す</span> でつなぎ直し</td></tr>
+    <tr><td>保存しようとしたら「別の端末で変更されています」と出る</td><td>店長画面を2台（スマホとパソコンなど）で同時に開いて直した。画面を開き直して、新しいほうの内容から直す</td></tr>
+    <tr><td>読み込みが遅い</td><td>開くのに数秒かかります（無料の仕組みのため）。「読み込んでいます」が出ていれば待ってください。20秒以上止まるならLINEを一度閉じて開き直す</td></tr>
+    <tr><td>直したはずの画面が古いまま</td><td>LINEのアプリを一度完全に閉じて（スワイプで消して）から開き直す</td></tr>
+    <tr><td>「いまは受付期間ではありません」と出る</td><td>受付中の月・週がない状態。店長がスキルタブで月を開く／週を「受付中にする」</td></tr>
+    <tr><td>人が辞めたのに自動作成で入ってくる</td><td><span class="menu">退職にする</span> を使ったか確認。在籍のチェックが外れていれば入りません</td></tr>
+    <tr><td>プルダウンが出ない・変な言葉が入った</td><td><span class="menu">入力のプルダウンを整える</span> を押してから、正しい言葉を選び直す</td></tr>
+    <tr><td>間違えてシートの見出しや行を消した</td><td>すぐに <b>元に戻す（⌘Z / Ctrl+Z）</b>。戻せないときはスプレッドシートの「ファイル → 変更履歴」から前の状態に戻せます</td></tr>
+  </table>
+
+  <div class="note">
+    <b>大事なお願い</b>
+    <ul style="margin-bottom:0">
+      <li>招待コードと店長用リンクは<b>グループLINEに貼らない</b>。</li>
+      <li>スプレッドシートの共有は、オーナー・店長だけにする（スタッフの名前やLINEのつながりが入っています）。</li>
+      <li>分からないこと・おかしな動きがあったら、画面のスクリーンショットを撮って、みっちーに連絡してください。</li>
+    </ul>
+  </div>
+</section>
+
+</body>
+</html>

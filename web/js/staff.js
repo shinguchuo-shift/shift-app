@@ -8,14 +8,15 @@
  * ②の初期値は「いつもの勤務」ではなく **①で出した暫定**。ここがこの店のやり方の肝。
  */
 
-import { call, callRetry, ApiError } from './api.js?v=3';
+import { call, callRetry, ApiError, isMock } from './api.js?v=4';
 import * as liffAuth from './liff-auth.js?v=1';
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-const hm = m => `${String(Math.floor(m / 60) % 24).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+// 閉店の 24:00 を 00:00 と出すと分かりにくいので、24 を超えないかぎりそのまま出す
+const hm = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 const WD = ['月', '火', '水', '木', '金', '土', '日'];
 
 let D = null;
@@ -76,7 +77,7 @@ async function load() {
 
 /** 開発中の「誰として見るか」切り替え。LINE から開くときは出さない。 */
 async function setupDevBar() {
-  if (liffAuth.isReady()) return;          // 本番（LIFF）では出さない
+  if (liffAuth.isReady() || isMock()) return;   // 本番（LIFF）と見本モードでは出さない
   const bar = $('devbar');
   bar.hidden = false;
   if ($('devWho').options.length) return;
@@ -642,7 +643,7 @@ function renderDone(el) {
         : `<p class="small">${monthLabel(m)}の暫定</p>${dowSummary(m)}`}
       <p class="small" style="margin-top:8px">〆切（${esc(target.deadline)}）までは直せます。</p>
     </div>
-    <p class="chat-note">LINEのトークにも同じ内容が届きます</p>
+    <p class="chat-note">この画面を閉じても大丈夫です</p>
     <div class="acts">
       <button class="btn ghost" id="back">トップに戻る</button>
     </div>`;

@@ -31,3 +31,6 @@ Thumbs.db
 # Node
 node_modules/
 npm-debug.log*
+
+# 説明書のスクショ用の見本データ（node tools/make-mock.mjs で作り直せる）
+web/mock/

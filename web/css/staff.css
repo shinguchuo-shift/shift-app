@@ -9,6 +9,9 @@ body.staff { background: #e9edf2; padding: 14px; }
   border-radius: 8px; padding: 8px 12px; font-size: 12px;
 }
 .devbar select { font: inherit; padding: 4px 7px; border-radius: 6px; border: 1px solid #d6b45f; }
+/* display:flex が hidden 属性を打ち消してしまうので、hidden のときは必ず消す。
+   これが無いと LINE で開いたスタッフにも開発用の帯が見えてしまう */
+.devbar[hidden] { display: none; }
 
 .phone {
   max-width: 420px; margin: 0 auto; background: var(--card);

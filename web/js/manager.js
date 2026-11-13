@@ -4,7 +4,7 @@
  * データは mgr.load で一度に取り、自動作成はこのブラウザで動かす（GAS の時間を使わない）。
  */
 
-import { call, callRetry, ApiError } from './api.js?v=3';
+import { call, callRetry, ApiError, isMock } from './api.js?v=4';
 import * as liffAuth from './liff-auth.js?v=1';
 import { generate, checksAll, sidesOf, isTrainee, endLimitOf } from './scheduler.js?v=3';
 
@@ -14,7 +14,8 @@ const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-const hm = m => `${String(Math.floor(m / 60) % 24).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+// 閉店の 24:00 を 00:00 と出すと分かりにくいので、24 を超えないかぎりそのまま出す
+const hm = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 const hourLabel = m => { const h = Math.floor(m / 60) % 24; return h === 0 ? 24 : h; };
 const SIDE = { hall: 'ホール', kitchen: 'キッチン' };
 
@@ -62,6 +63,7 @@ async function init() {
     $('tabs').classList.remove('hidden');
     document.querySelectorAll('.tab').forEach(b => b.onclick = () => show(b.dataset.tab));
     show('sub');
+    if (isMock()) mockScene();
   } catch (err) {
     const el = $('state');
     if (!el) return;
@@ -353,6 +355,25 @@ function renderSheet() {
     td.onclick = () => openBarPanel(Number(td.dataset.i)));
   document.querySelectorAll('td.blank.add').forEach(td =>
     td.onclick = () => openAddPanel(td.dataset.date, Number(td.dataset.min)));
+}
+
+/**
+ * 説明書のスクショ用。見本モード（localhost の ?mock=）でだけ、
+ * URL でタブやパネルを開けるようにする。公開ページでは動かない。
+ *   ?tab=sheet|auto|skill  …タブを開く
+ *   ?gen=1                 …自動作成を走らせて結果を出す
+ *   ?panel=bar&i=0         …バーの編集パネル
+ *   ?panel=add&date=2026-11-04&min=1140 …人を入れるパネル
+ *   ?scroll=600            …下にずらす
+ */
+function mockScene() {
+  const q = new URLSearchParams(location.search);
+  if (q.get('tab')) show(q.get('tab'));
+  if (q.get('gen') === '1') { const ms = runGenerate(); renderResult(ms); }
+  if (q.get('panel') === 'bar') openBarPanel(Number(q.get('i') || 0));
+  if (q.get('panel') === 'add') openAddPanel(q.get('date'), Number(q.get('min')));
+  if (q.get('open') === 'checks') document.querySelectorAll('details.chk-day').forEach((d, i) => { if (i === 2) d.open = true; });
+  if (q.get('scroll')) window.scrollTo(0, Number(q.get('scroll')));
 }
 
 /* ---------- 手直し ---------- */

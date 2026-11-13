@@ -32,6 +32,7 @@ body {
 .head h1 { font-size: 19px; margin: 0 0 2px; }
 .head .lead { color: var(--sub); font-size: 13px; margin: 0; }
 
+.devbar[hidden] { display: none; }
 .devbar {
   background: #fef3c7; border: 1px solid #fcd34d; color: #78350f;
   border-radius: 7px; padding: 7px 11px; font-size: 12px; margin-bottom: 12px;

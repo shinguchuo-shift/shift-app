@@ -12,6 +12,49 @@
 
 import { GAS_URL } from './config.js?v=2';
 
+/**
+ * 説明書のスクショ用の見本モード。
+ * 手元（localhost）で ?mock=<場面> を付けたときだけ、GAS を呼ばずに見本データ（mock/data.json）を返す。
+ * 公開ページ（github.io）では絶対に効かない。見本データの作り方は tools/make-mock.mjs。
+ */
+const MOCK = (() => {
+  const h = location.hostname;
+  if (h !== 'localhost' && h !== '127.0.0.1') return null;
+  return new URLSearchParams(location.search).get('mock');
+})();
+
+/** 見本モードで動いているか。 */
+export const isMock = () => !!MOCK;
+
+let mockData = null;
+
+async function mockCall(action, payload) {
+  if (!mockData) {
+    const all = await fetch('mock/data.json').then(r => r.json());
+    mockData = all[MOCK];
+    if (!mockData) throw new ApiError('mock', `見本データに「${MOCK}」がありません`);
+  }
+  await new Promise(r => setTimeout(r, 150));
+
+  if (action === 'me') {
+    if (mockData.me.error) throw new ApiError(mockData.me.error, mockData.me.message);
+    return JSON.parse(JSON.stringify(mockData.me));
+  }
+  if (action === 'me.submit') {
+    // 出した内容をそのまま「提出済み」にして、完了画面が出せるようにする
+    const m = mockData.me;
+    const p = (m.month && m.month.id === payload.periodId) ? m.month : m.week;
+    p.submitted = true;
+    p.requests = {};
+    (payload.days || []).forEach(d => { p.requests[d.date] = { start: d.start, end: d.end }; });
+    delete p.fromMonth;
+    return { periodId: payload.periodId };
+  }
+  if (action === 'me.link') return { staff: { name: 'スタッフ' } };
+  if (action === 'mgr.load') return JSON.parse(JSON.stringify(mockData.mgr));
+  return {};                                     // 保存系は何もしない
+}
+
 /** API のエラー。画面側で error コードを見て出し分ける。 */
 export class ApiError extends Error {
   constructor(code, message) {
@@ -27,6 +70,8 @@ export class ApiError extends Error {
  * @param {Object} opts { idToken, timeoutMs, devStaffId }
  */
 export async function call(action, payload = {}, opts = {}) {
+  if (MOCK) return mockCall(action, payload);
+
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), opts.timeoutMs || 60000);
 
