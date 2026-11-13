@@ -57,6 +57,13 @@ export async function start(kind) {
   const id = liffIdFor(kind);
   if (!id || skipLiff()) return { enabled: false, context: null };
 
+  // LIFF はエンドポイント（…/index.html）より下でしか動かない。
+  // 「…/shift-app/」のように index.html を省いて開かれると LINE ログインが invalid url で弾くので、付け直して開き直す
+  if (location.pathname.endsWith('/')) {
+    location.replace(location.pathname + 'index.html' + location.search + location.hash);
+    await new Promise(() => {});                        // 画面が遷移するので以降は実行されない
+  }
+
   await loadSdk();
   await liff.init({ liffId: id });
 
