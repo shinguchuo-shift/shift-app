@@ -273,3 +273,36 @@ function fromSheetValue(sheetKey, col, v) {
   for (var k in map) if (map[k] === t) return k;
   return v;                                      // 既にコードの値ならそのまま
 }
+
+/* ===================================================================
+ * プルダウン
+ *
+ * 店長が手で触る列は、決まった言葉しか入れられないようにする。
+ * 「高校」と書いて22時の制限が効かない、「マネージャー」と書いて店長画面が
+ * 開けない、のような書き間違いを入力の時点で止めるため。
+ * =================================================================== */
+
+/** シートごと・列ごとの選択肢（シートに見える日本語）。 */
+function dropdownsOf(sheetKey) {
+  var jp = function (col) {
+    var m = VALUE_MAPS[col];
+    return Object.keys(m).map(function (k) { return m[k]; });
+  };
+  return {
+    Staff: {
+      type: STAFF_TYPES,                 // 社員 / 主婦 / 大学生 / 高校生
+      role: jp('role'),                  // スタッフ / 店長
+      duty: jp('duty')                   // ホール / キッチン / 両方 / 研修中
+    },
+    Periods: {
+      kind: jp('kind'),                  // 月の暫定 / 週の確認
+      status: jp('status')               // 準備中 / 受付中 / 締切後 / 確定済み
+    },
+    Demand: {
+      day_type: jp('day_type')           // 平日 / 土日
+    },
+    Rules: {
+      level: jp('level')                 // 必須 / 注意
+    }
+  }[sheetKey] || null;
+}

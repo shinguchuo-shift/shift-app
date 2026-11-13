@@ -17,6 +17,8 @@ function onOpen() {
     .addSeparator()
     .addItem('招待コードの一覧を出す', 'menuListCodes')
     .addItem('配布用の紙を作る（印刷して配る）', 'menuPrintCodes')
+    .addSeparator()
+    .addItem('入力のプルダウンを整える', 'menuApplyDropdowns')
     .addToUi();
 }
 
@@ -70,6 +72,7 @@ function menuAddStaff() {
     if (BOOL_COLUMNS[k]) sh.getRange(row, i + 1).insertCheckboxes();
   });
   sh.getRange(row, 1).activate();
+  applyDropdowns('Staff');                       // 足した行にもプルダウンを付ける
 
   ui.alert('追加しました',
     name + 'さんを追加しました（' + id + '）。\n\n'
@@ -288,4 +291,14 @@ function liffUrlStaff_(ui) {
     key: 'liff_url_staff', value: url, note: 'スタッフ用の LIFF URL（配布用の紙に載せる）'
   });
   return url;
+}
+
+/** プルダウンを付ける（既存のシートに後から付けるとき用。データは変えない）。 */
+function menuApplyDropdowns() {
+  var done = applyAllDropdowns();
+  SpreadsheetApp.getUi().alert('プルダウンを付けました',
+    done.join('\n') + '\n\n'
+    + '一覧にない言葉は入れられなくなりました。\n'
+    + 'セルの右の ▼ から選んでください。',
+    SpreadsheetApp.getUi().ButtonSet.OK);
 }

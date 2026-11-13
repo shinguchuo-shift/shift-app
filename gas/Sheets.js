@@ -158,6 +158,7 @@ function writeTable(key, rows) {
   }
 
   sh.autoResizeColumns(1, Math.min(head.length, 8));           // 見出しが読める幅にする
+  applyDropdowns(key);                                         // 決まった言葉の列はプルダウンに
   return sh;
 }
 
@@ -196,4 +197,45 @@ function benchRead() {
   var msg = '1枚ずつ: ' + oneByOne + 'ms ／ batchGet: ' + batched + 'ms';
   console.log(msg);
   return msg;
+}
+
+/**
+ * プルダウンを付ける。データは書き換えない（今入っている値はそのまま）。
+ * 見出しを除く全行（シートの最終行まで）にかけるので、あとで行を足しても効く。
+ * @param {string} key 'Staff' などコードのキー
+ * @returns {number} プルダウンを付けた列の数
+ */
+function applyDropdowns(key) {
+  var lists = dropdownsOf(key);
+  if (!lists) return 0;
+
+  var sh = book().getSheetByName(tabOf(key));
+  if (!sh) return 0;
+
+  var rows = Math.max(sh.getMaxRows() - 1, 1);
+  var cols = keysOf(key);
+  var n = 0;
+
+  Object.keys(lists).forEach(function (col) {
+    var i = cols.indexOf(col);
+    if (i < 0) return;
+    var rule = SpreadsheetApp.newDataValidation()
+      .requireValueInList(lists[col], true)       // true = セルに ▼ を出す
+      .setAllowInvalid(false)                      // 一覧にない言葉は入れさせない
+      .setHelpText('一覧から選んでください：' + lists[col].join(' / '))
+      .build();
+    sh.getRange(2, i + 1, rows, 1).setDataValidation(rule);
+    n++;
+  });
+  return n;
+}
+
+/** プルダウンを付けるシートすべてにかける。 */
+function applyAllDropdowns() {
+  var done = [];
+  ['Staff', 'Periods', 'Demand', 'Rules'].forEach(function (k) {
+    var n = applyDropdowns(k);
+    if (n) done.push(tabOf(k) + '（' + n + '列）');
+  });
+  return done;
 }
