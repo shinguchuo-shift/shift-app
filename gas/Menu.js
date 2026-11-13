@@ -16,6 +16,7 @@ function onOpen() {
     .addItem('復帰させる（選んだ行）', 'menuRejoin')
     .addSeparator()
     .addItem('招待コードの一覧を出す', 'menuListCodes')
+    .addItem('配布用の紙を作る（印刷して配る）', 'menuPrintCodes')
     .addToUi();
 }
 
@@ -185,4 +186,106 @@ function pickedStaffRow_(ui) {
     return null;
   }
   return { row: row, name: name, id: id };
+}
+
+/**
+ * 招待コードの配布用シートを作る。
+ *
+ * コードは「その人になりすます鍵」なので、グループに貼ってはいけない。
+ * 1人ずつ切り取って手渡しできる形にする。
+ */
+function menuPrintCodes() {
+  var ui = SpreadsheetApp.getUi();
+
+  var url = liffUrlStaff_(ui);
+  if (!url) return;
+
+  var yet = readTable('Staff', function (s) {
+    return s.active === true && !s.line_user_id && s.invite_code;
+  });
+  if (!yet.length) {
+    return ui.alert('全員つながっています', '配る相手がいません。', ui.ButtonSet.OK);
+  }
+
+  var ss = SpreadsheetApp.getActive();
+  var name = '招待コード配布';
+  var old = ss.getSheetByName(name);
+  if (old) ss.deleteSheet(old);
+  var sh = ss.insertSheet(name);
+
+  var store = readSettings().store_name || '';
+  var COLS = 2;                                   // 横に2人ずつ
+  var rows = [];
+  var deco = [];
+
+  for (var i = 0; i < yet.length; i += COLS) {
+    var top = rows.length + 1;
+    var line1 = [], line2 = [], line3 = [], line4 = [], line5 = [];
+    for (var c = 0; c < COLS; c++) {
+      var p = yet[i + c];
+      line1.push(p ? p.name + ' さん' : '');
+      line2.push(p ? store + ' シフトアプリ' : '');
+      line3.push(p ? p.invite_code : '');
+      line4.push(p ? '下のリンクを開いて、上のコードを入れてください' : '');
+      line5.push(p ? url : '');
+      if (p) deco.push({ row: top + 2, col: c + 1 });
+    }
+    rows.push(line1, line2, line3, line4, line5, ['', '']);
+    deco.push({ block: true, top: top, cols: COLS });
+  }
+
+  sh.getRange(1, 1, rows.length, COLS).setValues(rows);
+  sh.setColumnWidth(1, 300);
+  sh.setColumnWidth(2, 300);
+
+  deco.forEach(function (d) {
+    if (d.block) {
+      sh.getRange(d.top, 1, 5, d.cols)
+        .setBorder(true, true, true, true, false, false, '#999999', SpreadsheetApp.BorderStyle.DASHED)
+        .setHorizontalAlignment('center')
+        .setVerticalAlignment('middle');
+      sh.getRange(d.top, 1, 1, d.cols).setFontSize(13).setFontWeight('bold');
+      sh.getRange(d.top + 1, 1, 1, d.cols).setFontSize(9).setFontColor('#666666');
+      sh.getRange(d.top + 3, 1, 1, d.cols).setFontSize(9).setFontColor('#666666');
+      sh.getRange(d.top + 4, 1, 1, d.cols).setFontSize(8).setFontColor('#1155cc');
+      for (var i = 0; i < 5; i++) sh.setRowHeight(d.top + i, i === 2 ? 40 : 20);
+    } else {
+      // 招待コードの行
+      sh.getRange(d.row, d.col)
+        .setFontSize(22).setFontWeight('bold').setFontFamily('Courier New');
+    }
+  });
+
+  sh.setHiddenGridlines(true);
+  ss.setActiveSheet(sh);
+
+  ui.alert('配布用の紙を作りました',
+    yet.length + '人分を「' + name + '」シートに出しました。\n\n'
+    + '印刷して、点線で切って1人ずつ手渡してください。\n\n'
+    + '⚠ グループLINEには貼らないこと。\n'
+    + '　 コードは本人になりすませる鍵なので、他の人に見えると危険です。',
+    ui.ButtonSet.OK);
+}
+
+/** スタッフ用の LIFF URL。設定に無ければ1回だけ聞いて覚える。 */
+function liffUrlStaff_(ui) {
+  var st = readSettings();
+  if (st.liff_url_staff) return String(st.liff_url_staff);
+
+  var res = ui.prompt('スタッフ用のリンクを教えてください',
+    'LINE Developers の LIFF タブにある「LIFF URL」を貼り付けてください。\n'
+    + '（https://liff.line.me/ で始まるもの）\n\n一度入れれば次からは聞きません。',
+    ui.ButtonSet.OK_CANCEL);
+  if (res.getSelectedButton() !== ui.Button.OK) return null;
+
+  var url = res.getResponseText().trim();
+  if (!/^https:\/\/liff\.line\.me\//.test(url)) {
+    ui.alert('https://liff.line.me/ で始まるURLを入れてください');
+    return null;
+  }
+
+  appendRowTo('Settings', {
+    key: 'liff_url_staff', value: url, note: 'スタッフ用の LIFF URL（配布用の紙に載せる）'
+  });
+  return url;
 }

@@ -43,7 +43,9 @@ function setupSampleData() {
     ['weekend_peak_boost', 1, '土日ピークの加算人数'],
     ['min_shift_min', 180, '1回の勤務の最短（3時間）'],
     ['max_shift_min', 480, '1回の勤務の最長（8時間）'],
-    ['footer_note', '※シフト希望は毎週木曜日〆切です。原則雇用時通りの提出を心掛けてください。', 'シフト表の下に出す注意書き']
+    ['footer_note', '※シフト希望は毎週木曜日〆切です。原則雇用時通りの提出を心掛けてください。', 'シフト表の下に出す注意書き'],
+    ['liff_url_staff', 'https://liff.line.me/2012473249-yrLHA1fl', 'スタッフ用のリンク（配布用の紙に載せる）'],
+    ['liff_url_manager', 'https://liff.line.me/2012473249-4aDhOvyt', '店長用のリンク（グループには貼らない）']
   ]);
 
   // --- Staff ---
