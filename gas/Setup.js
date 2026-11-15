@@ -55,7 +55,7 @@ function setupSampleData() {
       i === 0 ? 'manager' : 'staff',       // 1人目を店長役にしておく
       true, '',                             // active / line_user_id
       newInviteCode(), '',               // invite_code / invite_expires_at
-      s.capMin, s.leader, s.closer, s.duty,
+      s.capMin, s.leader, s.closer, s.lv.hall, s.lv.kitchen,
       (s.ng || []).join(','), s.colorHue, ''
     ];
   }));
@@ -113,7 +113,7 @@ function setupSampleData() {
 
   // --- Demand ---
   var demandRows = [];
-  ['weekday', 'weekend'].forEach(function (dt) {
+  ['weekday', 'weekend', 'holiday'].forEach(function (dt) {
     SAMPLE_SLOTS.forEach(function (min, i) {
       demandRows.push([dt, min, SAMPLE_DEMAND.hall[i], SAMPLE_DEMAND.kitchen[i]]);
     });
@@ -123,10 +123,10 @@ function setupSampleData() {
   // --- Rules ---
   writeTable('Rules', [
     ['leader', true, 'error', '営業中は毎時間、時間帯責任者を1人以上'],
-    ['peak3', true, 'error', 'ピーク帯はホール・キッチンそれぞれ研修中でない人を1人以上'],
+    ['peak3', true, 'error', RULE_LABELS_V2.peak3],
     ['close', true, 'error', '閉店時は締め作業ができる人を1人以上'],
     ['ng', true, 'error', 'NG組み合わせは同じ時間に入れない'],
-    ['rookie', true, 'warn', '研修中の人を1人きりにしない']
+    ['rookie', true, 'warn', RULE_LABELS_V2.rookie]
   ]);
 
   // --- Shifts（叩き台を作った結果） ---
@@ -139,6 +139,11 @@ function setupSampleData() {
     ['2026-11-02', 'シェイク分解'],
     ['2026-11-07', '棚卸し']
   ]);
+
+  // --- 祝日・繁忙期 ---
+  writeTable('Holidays', HOLIDAYS_JP);
+  writeTable('BusyPeriods', []);
+  textWholeColumn_('BusyPeriods', 'hours');
 
   writeTable('Log', [[now, 'setup', '', 'サンプルデータを投入']]);
 }

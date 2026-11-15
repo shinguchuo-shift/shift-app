@@ -19,6 +19,10 @@ export const DAYS = [
   { date: '2026-11-08', dow: 6, label: '11/8', wd: '日' }
 ].map(d => ({ ...d, dayType: d.dow >= 5 ? 'weekend' : 'weekday' }));
 
+// 11/3 は文化の日。祝日は「祝日」の必要人数の表を使う
+DAYS[1].dayType = 'holiday';
+DAYS[1].holiday = '文化の日';
+
 export const POSITIONS = [
   { key: 'reg', label: 'レジ', side: 'hall', sort: 1 },
   { key: 'drink', label: 'ドリンク', side: 'hall', sort: 2 },
@@ -28,8 +32,9 @@ export const POSITIONS = [
 ];
 
 // サンプルのスタッフ。名前はすべて架空。
-// [名前, 担当業務, 区分, 週の上限(h)]
-// 担当業務：hall=ホール / kitchen=キッチン / both=両方 / trainee=研修中
+// [名前, 担当, 区分, 週の上限(h)]
+// 担当：hall=ホール / kitchen=キッチン / both=両方 / trainee=研修中（どちらもレベル1）
+// スキルの段階は skillOf() で決める（社員はレベル3＝教えられる、ほかはレベル2）
 const RAW = [
   ['佐藤',   'hall',    '主婦',   25], ['鈴木', 'kitchen', '社員',   40],
   ['高橋',   'both',    '大学生', 20], ['田中', 'hall',    '高校生', 15],
@@ -42,6 +47,16 @@ const RAW = [
   ['木村',   'both',    '社員',   40], ['林',   'kitchen', '主婦',   25],
   ['斎藤',   'both',    '大学生', 20], ['清水', 'hall',    '社員',   40]
 ];
+
+/** 担当と区分から、ホール・キッチンのスキル段階（0〜3）を作る。 */
+function skillOf(duty, type) {
+  const top = type === '社員' ? 3 : 2;
+  if (duty === 'trainee') return { hall: 1, kitchen: 1 };
+  return {
+    hall: duty === 'hall' || duty === 'both' ? top : 0,
+    kitchen: duty === 'kitchen' || duty === 'both' ? top : 0
+  };
+}
 
 /** 区分ごとの終了上限。高校生は労働基準法で22時以降は働けない。 */
 export const TYPE_END_LIMIT = { '高校生': 22 * 60 };
@@ -108,7 +123,7 @@ function sampleSkills() {
   RAW.forEach((s, id) => {
     const [, duty, type, cap] = s;
     sk[id] = {
-      duty: duty,
+      lv: skillOf(duty, type),
       // 責任者は社員、締めは社員と大学生（高校生は22時までなので締めに入れない）
       leader: type === '社員',
       closer: (type === '社員' || type === '大学生') && duty !== 'trainee',
@@ -135,7 +150,7 @@ export function buildStaff() {
     capMin: sk[i].capMin,
     leader: sk[i].leader,
     closer: sk[i].closer,
-    duty: sk[i].duty,
+    lv: sk[i].lv,
     ng: sk[i].ng,
     colorHue: (i * 137) % 360     // デモの hue=sid*137%360 と同じ並び
   }));
@@ -188,7 +203,8 @@ export function buildInput(overrides = {}) {
     staff: buildStaff(),
     positions: POSITIONS,
     requests,
-    demand: { weekday: BASE_DEMAND, weekend: BASE_DEMAND },
+    demand: { weekday: BASE_DEMAND, weekend: BASE_DEMAND, holiday: BASE_DEMAND },
+    busy: [],
     peaks: PEAKS,
     weekendPeakBoost: 1,
     rules: { leader: true, peak3: true, close: true, ng: true, rookie: true },

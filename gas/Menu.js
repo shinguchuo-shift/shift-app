@@ -19,6 +19,8 @@ function onOpen() {
     .addItem('配布用の紙を作る（印刷して配る）', 'menuPrintCodes')
     .addSeparator()
     .addItem('入力のプルダウンを整える', 'menuApplyDropdowns')
+    .addSeparator()
+    .addItem('アプリの更新に合わせてシートを直す', 'menuMigrate')
     .addToUi();
 }
 
@@ -62,7 +64,8 @@ function menuAddStaff() {
     staff_id: id, name: name, type: '大学生', role: 'staff',
     active: true, line_user_id: '', invite_code: code, invite_expires_at: '',
     weekly_cap_min: 20 * 60, leader: false, closer: false,
-    duty: 'both', ng_staff_ids: '', color_hue: hue, memo: ''
+    hall_lv: 1, kitchen_lv: 1,                   // 入ったばかりはどちらも「1 一人でできない」
+    ng_staff_ids: '', color_hue: hue, memo: ''
   });
 
   // 真偽の列をチェックボックスにする（追加した行だけ）
@@ -77,7 +80,7 @@ function menuAddStaff() {
   ui.alert('追加しました',
     name + 'さんを追加しました（' + id + '）。\n\n'
     + '招待コード： ' + code + '\n\n'
-    + 'この行の「区分」「担当業務」「週の上限」を直してから、\n'
+    + 'この行の「区分」「ホール・キッチンのスキル」「週の上限」を直してから、\n'
     + '本人に招待コードを伝えてください。',
     ui.ButtonSet.OK);
 }

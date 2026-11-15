@@ -242,3 +242,26 @@ table.wk td.blank { background: #fff; }
   padding: 7px 9px; border: 1px solid var(--line-strong); border-radius: 7px;
   font: inherit; font-size: 14px;
 }
+
+/* ---------- 2026-11-15：スキル段階・祝日・繁忙期・手入力の行 ---------- */
+/* スキルの札。1=一人でできない（注意の色）、3=教えられる（濃い色） */
+.lv.l1 { background: #fff4e5; color: #9a5b00; }
+.lv.l2 { background: var(--accent-soft); }
+.lv.l3 { background: var(--accent); color: #fff; }
+.lvrow .lv + .lv, .c3 .lv + .lv { margin-left: 4px; }
+
+/* 祝日名と繁忙期の印（日付の欄） */
+table.wk th.day .hol { font-weight: 400; color: var(--sun); font-size: 9px; }
+table.wk th.day .busy { display: inline-block; margin-top: 2px; padding: 0 4px; border-radius: 4px;
+  background: #fff1e6; color: #b45309; font-size: 9px; font-weight: 700; }
+
+/* 手入力の行：色を変え、最初の行の上に点線で区切る */
+table.wk tr.hand td.blank { background: #f6f9ff; }
+table.wk tr.hand1 td { border-top: 1.5px dashed #9fb3d9; }
+table.wk th.day .addrow { margin-top: 4px; padding: 1px 4px; font-size: 9px; font-weight: 700;
+  color: var(--accent); background: #fff; border: 1px solid var(--accent); border-radius: 4px; cursor: pointer;
+  white-space: nowrap; }
+table.wk th.day .addrow:hover { background: var(--accent-soft); }
+
+ul.busylist { margin: 6px 0 0; padding-left: 18px; font-size: 13px; }
+ul.busylist li { margin-bottom: 4px; }

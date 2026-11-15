@@ -19,24 +19,38 @@ export const WEIGHTS = {
   close: 1.5,    // 締め要員。上げると closer が閉店まで入りやすくなる
   waste: 0.6,    // 役に立たない時間への罰。上げると勤務が短く刻まれる
   rookie: 0.4,   // 教育中を1人にする罰。上げると新人がベテランに張り付く
+  teach: 0.3,    // レベル1とレベル3を同じ時間に組むごほうび。上げると教える人が新人に寄る
   usedDiv: 200   // week の偏り調整。小さくすると「よく働く人」を避けるようになる
 };
 
 /* ---------- 補助 ---------- */
 
 /**
- * 担当業務から、入れる側を返す。
- *   ホール → hall ／ キッチン → kitchen ／ 両方・研修中 → 両方
- * 研修中はどちらにも入れるが、1人にはしない（下の rookie ルール）。
+ * スキルは「ホール」「キッチン」それぞれ 0〜3 の段階で持つ（staff.lv = { hall, kitchen }）。
+ *   0 … 入らない
+ *   1 … 一人でできない（同じ側にレベル2以上がいる時間にしか入れない）
+ *   2 … 一人でできる
+ *   3 … 人に教えられる（レベル1の人と同じ時間に入るよう優先する）
  */
+export const LEVEL_LABEL = { 0: '入らない', 1: '一人でできない', 2: '一人でできる', 3: '教えられる' };
+
+/** その側のスキル段階。 */
+export const levelOf = (staff, side) => Number((staff.lv || {})[side]) || 0;
+
+/** 入れる側（スキルが1以上の側）を返す。 */
 export function sidesOf(staff) {
-  if (staff.duty === 'hall') return ['hall'];
-  if (staff.duty === 'kitchen') return ['kitchen'];
-  return ['hall', 'kitchen'];
+  return ['hall', 'kitchen'].filter(side => levelOf(staff, side) >= 1);
 }
 
-/** 研修中か。 */
-export const isTrainee = staff => staff.duty === 'trainee';
+/**
+ * 一人でできない（レベル1）か。
+ * side を渡せばその側だけ、省けば「入れる側がすべてレベル1」のときに true。
+ */
+export function isTrainee(staff, side) {
+  if (side) return levelOf(staff, side) === 1;
+  const s = sidesOf(staff);
+  return s.length > 0 && s.every(x => levelOf(staff, x) === 1);
+}
 
 /**
  * その人を入れてよい終了時刻の上限（分）。
@@ -60,14 +74,35 @@ function inPeak(peaks, min) {
 
 /**
  * その日・その side・その slot に必要な人数。
- * 土日かつピーク内なら weekendPeakBoost を足す。
+ *  - 平日・土日・祝日の表から引く（祝日の表が無ければ土日の表を使う）
+ *  - 土日・祝日のピーク帯なら weekendPeakBoost を足す
+ *  - 繁忙期（input.busy）に入っていれば、その分を足す
  */
-function need(input, day, side, i) {
-  const base = input.demand[day.dayType][side][i] || 0;
-  const isWeekend = day.dayType === 'weekend';
-  const boost = (isWeekend && inPeak(input.peaks, input.slots[i])) ? input.weekendPeakBoost : 0;
-  return base + boost;
+export function needAt(input, day, side, i) {
+  const table = input.demand[day.dayType] || input.demand.weekend || input.demand.weekday;
+  const base = (table && table[side] && table[side][i]) || 0;
+  const min = input.slots[i];
+  const isHoliday = day.dayType === 'weekend' || day.dayType === 'holiday';
+  const boost = (isHoliday && inPeak(input.peaks, min)) ? (input.weekendPeakBoost || 0) : 0;
+  return base + boost + busyExtra(input, day, side, min);
 }
+
+/** 繁忙期で増やす人数。日付は 'YYYY-MM-DD' の文字列どうしで比べる。 */
+export function busyExtra(input, day, side, min) {
+  let add = 0;
+  for (const b of input.busy || []) {
+    if (day.date < b.start || day.date > b.end) continue;
+    if (b.ranges && b.ranges.length && !inPeak(b.ranges, min)) continue;
+    add += Number(b[side]) || 0;
+  }
+  return add;
+}
+
+/** その日が繁忙期に入っているか（画面の印用）。 */
+export const busyOn = (input, date) =>
+  (input.busy || []).filter(b => date >= b.start && date <= b.end);
+
+const need = needAt;
 
 /** 分を HH:MM にする。 */
 const hhmm_ = m => `${String(Math.floor(m / 60) % 24).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
@@ -116,7 +151,9 @@ export function generate(input) {
     const placed = [];                                   // この日の配置
     const cover = { hall: new Array(nSlots).fill(0), kitchen: new Array(nSlots).fill(0) };
     const lead = new Array(nSlots).fill(0);
-    const v3 = { hall: new Array(nSlots).fill(0), kitchen: new Array(nSlots).fill(0) };
+    const v3 = { hall: new Array(nSlots).fill(0), kitchen: new Array(nSlots).fill(0) };   // レベル2以上の人数
+    const t1 = { hall: new Array(nSlots).fill(0), kitchen: new Array(nSlots).fill(0) };   // レベル1の人数
+    const t3 = { hall: new Array(nSlots).fill(0), kitchen: new Array(nSlots).fill(0) };   // レベル3の人数
     const done = new Set();                              // 1日1人1回まで
     let closerCount = 0;
 
@@ -146,8 +183,9 @@ export function generate(input) {
           reqEnd = Math.min(reqEnd, li >= 0 ? li : nSlots);
         }
 
-        const trainee = isTrainee(s);
         for (const side of sidesOf(s)) {
+          const lvl = levelOf(s, side);
+          const trainee = lvl === 1;
 
           for (let a = a0; a + minLen <= reqEnd; a++) {
             const maxHere = Math.min(maxLen, reqEnd - a, rem);
@@ -158,17 +196,27 @@ export function generate(input) {
               if (rules.ng && placed.some(p =>
                 isNG(p.staff, s) && p.a < e && a < p.e)) continue;
 
-              let hit = 0, lh = 0, ph = 0, alone = 0, useful = 0;
+              // レベル1は、同じ側にレベル2以上がいる時間にしか入れない
+              if (rules.rookie && trainee) {
+                let ok = true;
+                for (let i = a; i < e; i++) if (v3[side][i] === 0) { ok = false; break; }
+                if (!ok) continue;
+              }
+
+              let hit = 0, lh = 0, ph = 0, alone = 0, useful = 0, teach = 0;
               for (let i = a; i < e; i++) {
                 let u = false;
                 const nd = need(input, day, side, i);
                 if (cover[side][i] < nd) { hit++; u = true; }
                 // need>0 の時間に限る（デモには無い条件。docs/04 参照）
                 if (rules.leader && s.leader && lead[i] === 0 && nd > 0) { lh++; u = true; }
-                // ピーク帯に「研修中でない人」を置きたい
+                // ピーク帯に「レベル2以上の人」を置きたい
                 if (rules.peak3 && !trainee && inPeak(input.peaks, slots[i]) && v3[side][i] === 0 && nd > 0) { ph++; u = true; }
-                // 研修中を1人にしない
+                // レベル1を1人にしない
                 if (rules.rookie && trainee && v3[side][i] === 0) alone++;
+                // レベル1とレベル3を同じ時間に組む
+                if (trainee && t3[side][i] > 0) teach++;
+                if (lvl === 3 && t1[side][i] > 0) teach++;
                 if (u) useful++;
               }
               let ch = 0;
@@ -183,9 +231,10 @@ export function generate(input) {
                 + WEIGHTS.close * ch
                 - WEIGHTS.waste * (len - useful)
                 - WEIGHTS.rookie * alone
+                + WEIGHTS.teach * teach
                 - (used[s.id] * grid / 60) / WEIGHTS.usedDiv;
 
-              if (!best || score > best.score) best = { score, staff: s, side, a, e, trainee };
+              if (!best || score > best.score) best = { score, staff: s, side, a, e, trainee, lvl };
             }
           }
         }
@@ -199,7 +248,9 @@ export function generate(input) {
       for (let i = best.a; i < best.e; i++) {
         cover[best.side][i]++;
         if (best.staff.leader) lead[i]++;
-        if (!best.trainee) v3[best.side][i]++;   // 研修中でない人の数
+        if (!best.trainee) v3[best.side][i]++;   // レベル2以上の人数
+        if (best.lvl === 1) t1[best.side][i]++;
+        if (best.lvl === 3) t3[best.side][i]++;
       }
       const endMin = best.e < nSlots ? slots[best.e] : slots[nSlots - 1] + grid;
       if (best.staff.closer && endMin === input.closeMin) closerCount++;
@@ -263,11 +314,11 @@ export function checks(input, shifts, date) {
     for (const side of ['hall', 'kitchen']) {
       const f = Array.from({ length: nSlots }, (_, i) =>
         inPeak(input.peaks, slots[i]) && need(input, day, side, i) > 0 &&
-        !at(i).some(x => x.side === side && !isTrainee(x.staff)));
+        !at(i).some(x => x.side === side && levelOf(x.staff, side) >= 2));
       const t = ranges(f, slots, grid);
       if (t) {
         const label = side === 'hall' ? 'ホール' : 'キッチン';
-        out.push({ kind: 'ピーク', level: lv('ピーク'), message: `${label}に研修中でない人がいない：${t}` });
+        out.push({ kind: 'ピーク', level: lv('ピーク'), message: `${label}にレベル2以上の人がいない：${t}` });
       }
     }
   }
@@ -288,6 +339,14 @@ export function checks(input, shifts, date) {
     }
   });
 
+  // スキルが0（入らない）側に入っている
+  list.forEach(x => {
+    if (levelOf(x.staff, x.side) === 0) {
+      const label = x.side === 'hall' ? 'ホール' : 'キッチン';
+      out.push({ kind: '担当外', level: 'error', message: `${x.staff.name}さんは${label}に入らない設定です` });
+    }
+  });
+
   // NG
   if (rules.ng) {
     list.forEach((a, i) => list.slice(i + 1).forEach(b => {
@@ -300,12 +359,12 @@ export function checks(input, shifts, date) {
   // 教育中
   if (rules.rookie) {
     list.forEach(x => {
-      if (!isTrainee(x.staff)) return;
+      if (!isTrainee(x.staff, x.side)) return;
       const f = Array.from({ length: nSlots }, (_, i) =>
         slots[i] >= x.start && slots[i] < x.end &&
-        !at(i).some(y => y.side === x.side && !isTrainee(y.staff)));
+        !at(i).some(y => y.side === x.side && levelOf(y.staff, x.side) >= 2));
       const t = ranges(f, slots, grid);
-      if (t) out.push({ kind: '研修中', level: lv('研修中'), message: `${x.staff.name}さんが1人になる時間：${t}` });
+      if (t) out.push({ kind: '研修中', level: lv('研修中'), message: `${x.staff.name}さん（レベル1）が1人になる時間：${t}` });
     });
   }
 
@@ -313,7 +372,7 @@ export function checks(input, shifts, date) {
 
   // level は Rules シートの level 列から読む。無ければ既定値
   function lv(kind) {
-    const key = { '不足': null, '責任者': 'leader', 'ピーク': 'peak3', '締め': 'close', 'NG': 'ng', '研修中': 'rookie', '時間外': null }[kind];
+    const key = { '不足': null, '責任者': 'leader', 'ピーク': 'peak3', '締め': 'close', 'NG': 'ng', '研修中': 'rookie', '時間外': null, '担当外': null }[kind];
     if (!key) return 'error';
     return (input.ruleLevels && input.ruleLevels[key]) || (key === 'rookie' ? 'warn' : 'error');
   }

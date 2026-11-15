@@ -6,7 +6,7 @@
 
 import { call, callRetry, ApiError, isMock } from './api.js?v=4';
 import * as liffAuth from './liff-auth.js?v=1';
-import { generate, checksAll, sidesOf, isTrainee, endLimitOf } from './scheduler.js?v=3';
+import { generate, checksAll, sidesOf, isTrainee, endLimitOf, levelOf, needAt, busyOn, LEVEL_LABEL } from './scheduler.js?v=4';
 
 const $ = id => document.getElementById(id);
 
@@ -24,6 +24,7 @@ let shifts = [];       // 画面上のシフト
 let stale = false;     // 希望やルールが変わって作り直しが要る状態
 let dirty = false;     // 手直ししたが、まだ保存していない
 let showAll = false;   // 追加するとき、希望を出していない人も出す
+let extraRows = {};    // シフト表で「＋行を追加」した数（日付 → 行数）。画面だけのもの
 let tab = 'sub';
 
 /* ---------- 起動 ---------- */
@@ -114,6 +115,7 @@ async function switchWeek(id) {
   try {
     D = await call('mgr.load', { periodId: id }, auth());
     shifts = D.shifts.slice();
+    extraRows = {};
     dirty = false; stale = false;
     renderHeader();
     show(keep);
@@ -160,7 +162,7 @@ function schedulerInput() {
   return {
     days: D.days, slots: D.slots, grid: D.settings.grid,
     staff: D.staff, requests: D.requests,
-    demand: D.demand, peaks: D.settings.peaks,
+    demand: D.demand, busy: D.busy || [], peaks: D.settings.peaks,
     weekendPeakBoost: D.settings.weekendPeakBoost,
     rules: D.rules, ruleLevels: D.ruleLevels,
     minLen: D.settings.minLen, maxLen: D.settings.maxLen,
@@ -183,15 +185,18 @@ function isOutOfRequest(s) {
   return !r || s.start < r.start || s.end > r.end;
 }
 
-/** 担当業務の表示名。 */
-const DUTY = { hall: 'ホール', kitchen: 'キッチン', both: '両方', trainee: '研修中' };
+/** スキルの短い表示。「ホール3・キッチン1」のように、入らない側は出さない。 */
+const skillText = s => sidesOf(s).map(x => `${SIDE[x]}${levelOf(s, x)}`).join('・') || '入らない';
 
-/** その日・その side・その slot の必要人数。 */
-function need(day, side, i) {
-  const base = D.demand[day.dayType][side][i] || 0;
-  const peak = D.settings.peaks.some(([a, b]) => D.slots[i] >= a && D.slots[i] < b);
-  return base + (day.dayType === 'weekend' && peak ? D.settings.weekendPeakBoost : 0);
-}
+/** スキルの札（段階ごとに色を変える）。 */
+const skillTags = s => sidesOf(s).map(x =>
+  `<span class="lv l${levelOf(s, x)}" title="${SIDE[x]}：${LEVEL_LABEL[levelOf(s, x)]}">${SIDE[x]}${levelOf(s, x)}</span>`).join('');
+
+/** 土・日・祝日の色分け。祝日は日曜と同じ赤。 */
+const dayClass = d => d.dow === 6 || d.dayType === 'holiday' ? 'sun' : d.dow === 5 ? 'sat' : '';
+
+/** その日・その side・その slot の必要人数（平日／土日／祝日の表＋ピーク加算＋繁忙期）。 */
+const need = (day, side, i) => needAt(schedulerInput(), day, side, i);
 
 /** その日の不足（人×コマ）と必要総数。 */
 function dayShort(day) {
@@ -258,7 +263,7 @@ function requestTable() {
 
   const head = '<tr><th class="who">名前</th>'
     + D.days.map(d => {
-      const cls = d.dow === 5 ? 'sat' : d.dow === 6 ? 'sun' : '';
+      const cls = dayClass(d);
       return `<th class="${cls}">${d.label}<br><small>${d.wd}</small></th>`;
     }).join('')
     + '<th class="tot">合計</th></tr>';
@@ -318,7 +323,8 @@ function renderSheet() {
       <button class="btn sm" id="goAuto">自動作成へ</button></div>` : ''}
     <div class="card">
       <h2>週間シフト表</h2>
-      <p class="lead">★は時間帯責任者。<b>バーを押すと時間を変えたり外したりできます。空いているマスを押すと人を入れられます。</b></p>
+      <p class="lead">★は時間帯責任者。<b>バーを押すと時間を変えたり外したりできます。空いているマスを押すと人を入れられます。</b>
+        各日の下の色の付いた行は手入力用です（手で足した人はここに入ります）。足りなければ「＋行を追加」。</p>
       <div class="kpis">
         <div class="kpi"><span>配置</span><b>${shifts.length}件</b></div>
         <div class="kpi"><span>要対応</span><b>${errs}</b></div>
@@ -355,6 +361,12 @@ function renderSheet() {
     td.onclick = () => openBarPanel(Number(td.dataset.i)));
   document.querySelectorAll('td.blank.add').forEach(td =>
     td.onclick = () => openAddPanel(td.dataset.date, Number(td.dataset.min)));
+  document.querySelectorAll('button.addrow').forEach(b => b.onclick = () => {
+    extraRows[b.dataset.date] = (extraRows[b.dataset.date] || 0) + 1;
+    const y = window.scrollY;
+    renderSheet();
+    window.scrollTo({ top: y });                   // 押した場所から動かさない
+  });
 }
 
 /**
@@ -444,7 +456,7 @@ function openBarPanel(i) {
   const can = sidesOf(who);
   const sideBtns = ['hall', 'kitchen'].map(x =>
     `<button class="btn sm ${s.side === x ? '' : 'ghost'}" data-side="${x}"
-      ${can.includes(x) ? '' : 'disabled title="担当業務が違います"'}>${SIDE[x]}</button>`).join('');
+      ${can.includes(x) ? '' : 'disabled title="スキルが「入らない」になっています"'}>${SIDE[x]}${levelOf(who, x) ? ' ' + levelOf(who, x) : ''}</button>`).join('');
 
   openPanel(`${who.name}　${day.label}（${day.wd}）`, `
     <p class="lead">${req ? `希望：${hm(req.start)}〜${hm(req.end)}` : '<b class="warn">この日は希望を出していません</b>'}</p>
@@ -488,7 +500,7 @@ function openBarPanel(i) {
     s.start = Number($('pStart').value);
     s.end = Number($('pEnd').value);
     s.side = side;
-    s.source = 'manual';
+    if (s.source !== 'added') s.source = 'manual';   // 手で足した人は手入力の行のまま
     changed();
     toast(`${who.name}さんを ${hm(s.start)}〜${hm(s.end)} ${SIDE[side]} にしました`);
   };
@@ -524,8 +536,7 @@ function openAddPanel(date, min) {
   const rows = list.map(({ s, rank }) => {
     const r = requestOf(s.id, date);
     const over = (used[s.id] || 0) >= s.capMin;
-    const lv = `<span class="lv${isTrainee(s) ? ' zero' : ''}">${DUTY[s.duty] || s.duty}</span>`
-      + `<span class="lv zero">${esc(s.type)}</span>`;
+    const lv = skillTags(s) + `<span class="lv zero">${esc(s.type)}</span>`;
     return `<button class="cand${rank ? ' off' : ''}" data-id="${s.id}">
       <span class="c1">${s.leader ? '★' : ''}${esc(s.name)}<small>${esc(s.type)}</small></span>
       <span class="c2">${r ? `希望 ${hm(r.start)}〜${hm(r.end)}` : '<b class="warn">希望なし</b>'}
@@ -550,9 +561,17 @@ function openAddPanel(date, min) {
     if (end > D.settings.closeMin) end = D.settings.closeMin; // 閉店を越えない
     if (end <= min) end = Math.min(min + D.settings.grid, D.settings.closeMin);
 
+    // 入れる側：その時間に足りていない側を優先。同じならスキルの高い側
+    const gap = side => {
+      const si = D.slots.indexOf(min);
+      const c = shifts.filter(x => x.date === date && x.side === side && x.start <= min && min < x.end).length;
+      return si < 0 ? 0 : need(day, side, si) - c;
+    };
+    const side = sidesOf(s).slice().sort((a, b) => gap(b) - gap(a) || levelOf(s, b) - levelOf(s, a))[0];
+
     shifts.push({
-      date, staffId: s.id, side: sidesOf(s)[0],
-      start: min, end, source: 'manual'
+      date, staffId: s.id, side,
+      start: min, end, source: 'added'      // 手で足した人は、シフト表の下の「手入力の行」に出す
     });
     changed();
     toast(`${s.name}さんを ${hm(min)}〜${hm(end)} に入れました`);
@@ -577,22 +596,34 @@ function weekTable() {
       .sort((a, b) => a.start - b.start || a.end - b.end);
 
     // 重ならない人は同じ行の右側に詰める
-    const L = [];
-    for (const x of list) {
-      let k = L.findIndex(l => l.end <= x.start);
-      if (k < 0) { L.push({ end: 0, items: [] }); k = L.length - 1; }
-      L[k].items.push(x); L[k].end = x.end;
-    }
-    if (!L.length) L.push({ items: [] });          // 誰も入っていない日も1行は出す
-    const over = L.length > lanes;                 // 紙に収まらない日は印として出す
+    const pack = items => {
+      const L = [];
+      for (const x of items) {
+        let k = L.findIndex(l => l.end <= x.start);
+        if (k < 0) { L.push({ end: 0, items: [] }); k = L.length - 1; }
+        L[k].items.push(x); L[k].end = x.end;
+      }
+      return L;
+    };
+    // 上：自動作成で入った人（時間を直した人も含む）／下：手で足した人＋空白行
+    const autoL = pack(list.filter(x => x.source !== 'added'));
+    const handL = pack(list.filter(x => x.source === 'added'));
+    const handRows = Math.max(2 + (extraRows[day.date] || 0), handL.length);
+    while (handL.length < handRows) handL.push({ items: [] });
+    const L = autoL.map(l => ({ ...l, hand: false })).concat(handL.map(l => ({ ...l, hand: true })));
+    const over = autoL.length + handL.filter(l => l.items.length).length > lanes;   // 紙に収まらない日は印
 
-    const dcls = day.dow === 5 ? 'sat' : day.dow === 6 ? 'sun' : '';
+    const dcls = dayClass(day);
     const rows = L.length + 1;
+    const busy = busyOn(schedulerInput(), day.date);
 
     // 時刻の見出し（日ごとに繰り返す）
     html += `<tr><th class="day ${dcls}" rowspan="${rows + 1}">${day.label}<br><small>${day.wd}</small>`
+      + (day.holiday ? `<br><small class="hol">${esc(day.holiday)}</small>` : '')
+      + busy.map(b => `<br><small class="busy" title="繁忙期：${esc(b.name)}">${esc(b.name)}</small>`).join('')
       + `<br><small class="cnt">${list.length}人</small>`
       + (over ? `<br><small class="over" title="紙は${lanes}行までです">紙に収まりません</small>` : '')
+      + `<br><button class="addrow" data-date="${day.date}" title="手入力の行を1つ増やします">＋行を追加</button>`
       + '</th>'
       + Array.from({ length: cols }, (_, i) =>
         `<th class="hr">${hourLabel(axisStart + i * grid)}</th>`).join('')
@@ -607,8 +638,8 @@ function weekTable() {
         : '<td class="blank"></td>';
     };
 
-    // バーの行
-    L.forEach(l => {
+    // バーの行（手入力の行は色を変え、最初の行の上に区切り線）
+    L.forEach((l, li) => {
       let row = '', c = 0;
       for (const x of l.items) {
         const a = Math.max(0, colOf(x.start)), b = Math.min(cols, colOf(x.end));
@@ -617,7 +648,7 @@ function weekTable() {
         const who = staffById(x.staffId);
         const out = isOutOfRequest(x);
         row += `<td class="nm${out ? ' out' : ''}" colspan="${b - a}" data-i="${x.i}"`
-          + ` title="${esc(who.name)}（${DUTY[who.duty] || ''}・${esc(who.type)}） ${hm(x.start)}〜${hm(x.end)} ${SIDE[x.side]}`
+          + ` title="${esc(who.name)}（${skillText(who)}・${esc(who.type)}） ${hm(x.start)}〜${hm(x.end)} ${SIDE[x.side]}`
           + `${out ? '（希望の外）' : ''}"`
           + ` style="background:hsl(${who.colorHue} 62% 84%)">`
           + (who.leader ? '★' : '') + esc(who.name) + (out ? '<span class="mk">!</span>' : '')
@@ -625,7 +656,8 @@ function weekTable() {
         c = b;
       }
       for (; c < cols; c++) row += blank(c);
-      html += `<tr>${row}</tr>`;
+      const first = l.hand && (li === 0 || !L[li - 1].hand);
+      html += `<tr class="${l.hand ? 'hand' : ''}${first ? ' hand1' : ''}">${row}</tr>`;
     });
 
     // 最下段：その時間の不足
@@ -652,7 +684,7 @@ function checkList(checks) {
   const body = checks.map(c => {
     if (!c.items.length) return '';
     const day = D.days.find(d => d.date === c.date);
-    const dcls = day.dow === 5 ? 'sat' : day.dow === 6 ? 'sun' : '';
+    const dcls = dayClass(day);
     const errs = c.items.filter(i => i.level === 'error').length;
     const warns = c.items.length - errs;
     const counts = [
@@ -672,11 +704,18 @@ function checkList(checks) {
 /* ---------- ③ 自動作成 ---------- */
 
 function renderAuto() {
+  const hol = D.demand.holiday || D.demand.weekend;
   const rows = D.slots.map((min, i) => `<tr>
       <td>${hm(min)}</td>
       <td>${D.demand.weekday.hall[i]}</td><td>${D.demand.weekday.kitchen[i]}</td>
       <td>${D.demand.weekend.hall[i]}</td><td>${D.demand.weekend.kitchen[i]}</td>
+      <td>${hol.hall[i]}</td><td>${hol.kitchen[i]}</td>
     </tr>`).join('');
+
+  // この週の祝日と繁忙期
+  const hols = D.days.filter(d => d.holiday).map(d => `${d.label}（${d.wd}）${esc(d.holiday)}`);
+  const busyList = (D.busy || []).map(b => `<li><b>${esc(b.name)}</b>　${fmt(b.start)}〜${fmt(b.end)}　`
+    + `ホール+${b.hall}・キッチン+${b.kitchen}　${b.hours ? esc(b.hours) + '時' : '一日中'}</li>`).join('');
 
   $('body').innerHTML = `
     <div class="card">
@@ -688,13 +727,24 @@ function renderAuto() {
 
     <div class="card">
       <h2>必要人数</h2>
-      <p class="lead">時間帯ごとの人数。土日のピーク帯は自動で +${D.settings.weekendPeakBoost}人します。</p>
+      <p class="lead">時間帯ごとの人数。土日・祝日のピーク帯は自動で +${D.settings.weekendPeakBoost}人します。
+        変えるときはスプレッドシートの「必要人数」シートで。</p>
       <div class="sheet"><table class="wk">
         <tr><th class="hr">時刻</th><th class="hr">平日ホール</th><th class="hr">平日キッチン</th>
-            <th class="hr">土日ホール</th><th class="hr">土日キッチン</th></tr>
+            <th class="hr">土日ホール</th><th class="hr">土日キッチン</th>
+            <th class="hr">祝日ホール</th><th class="hr">祝日キッチン</th></tr>
         ${rows}
       </table></div>
+      <p class="lead" style="margin-top:9px">この週の祝日：${hols.length ? hols.join('、') : 'なし'}
+        <small>（祝日は「祝日」シートで足したり消したりできます）</small></p>
       <p class="lead" style="margin-top:9px">1回の勤務：${D.settings.minLen / 60}〜${D.settings.maxLen / 60}時間</p>
+    </div>
+
+    <div class="card">
+      <h2>繁忙期</h2>
+      <p class="lead">期間中は、上の人数に足して作ります。スプレッドシートの「繁忙期」シートに
+        名前・開始日・終了日・増やす人数・時間帯（例：11-14,17-20。空なら一日中）を書きます。</p>
+      ${busyList ? `<ul class="busylist">${busyList}</ul>` : '<p class="lead">登録されている繁忙期はありません。</p>'}
     </div>`;
 
   $('gen').onclick = () => {
@@ -759,12 +809,12 @@ function renderSkill() {
     const ngNames = (s.ng || []).map(id => staffById(id)?.name).filter(Boolean);
     return `<details class="sk">
       <summary><span class="nm">${esc(s.name)}
-        <small>${DUTY[s.duty] || s.duty}・${esc(s.type)}・週${s.capMin / 60}h${
+        <small>${skillText(s)}・${esc(s.type)}・週${s.capMin / 60}h${
           s.leader ? '・責任者' : ''}${s.closer ? '・締め可' : ''}</small>
       </span></summary>
       <div class="ed">
         <div class="lvrow">
-          <span class="lv">${DUTY[s.duty] || s.duty}</span>
+          ${skillTags(s)}
           <span class="lv zero">${esc(s.type)}</span>
           ${limit < D.settings.closeMin
             ? `<span class="lv warnlv">${hm(limit)}まで</span>` : ''}
@@ -800,7 +850,7 @@ function renderSkill() {
 
     <div class="card">
       <h2>スキルカード</h2>
-      <p class="lead">担当業務と区分。高校生は22時までしか入りません。編集は次の段階で作ります。</p>
+      <p class="lead">ホール・キッチンのスキル（1 一人でできない／2 一人でできる／3 教えられる）と区分。高校生は22時までしか入りません。直すときはスプレッドシートの「スタッフ」シートで。</p>
       ${people}
     </div>`;
 

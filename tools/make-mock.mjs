@@ -15,10 +15,10 @@ const WD = ['月', '火', '水', '木', '金', '土', '日'];
 const STORE = 'サンプル店';
 const LABELS = {
   leader: '営業中は毎時間、時間帯責任者を1人以上',
-  peak3: 'ピーク帯はホール・キッチンそれぞれ研修中でない人を1人以上',
+  peak3: 'ピーク帯はホール・キッチンそれぞれレベル2以上の人を1人以上',
   close: '閉店時は締め作業ができる人を1人以上',
   ng: 'NG組み合わせは同じ時間に入れない',
-  rookie: '研修中の人を1人きりにしない'
+  rookie: 'レベル1の人は、同じ側にレベル2以上がいる時間にだけ入れる'
 };
 
 const pad = n => String(n).padStart(2, '0');
@@ -43,8 +43,13 @@ const staff = F.buildStaff().map((s, i) => ({
 const byId = Object.fromEntries(staff.map(s => [s.id, s]));
 const usualAll = F.buildUsual();
 const { requests, submissions } = F.buildRequests();
-const input = F.buildInput();
+// 見本の繁忙期（週末のピーク帯にホール・キッチン+1）
+const busy = [{ name: '週末フェア', start: '2026-11-07', end: '2026-11-08', hall: 1, kitchen: 1,
+  ranges: [[660, 840], [1020, 1200]], hours: '11-14,17-20' }];
+const input = F.buildInput({ busy });
 const shifts = generate(input).map(s => ({ ...s, source: 'auto' }));
+// 手入力の行の見本：11/4 の夜に1人足した
+shifts.push({ date: '2026-11-04', staffId: 's19', side: 'hall', start: 1140, end: 1320, source: 'added' });
 
 /* ---------- 店長画面 ---------- */
 const mgr = {
@@ -60,13 +65,14 @@ const mgr = {
     { id: '2026-11-09', startDate: '2026-11-09', endDate: '2026-11-15', status: 'draft', monthId: '2026-11' },
     { id: '2026-11-02', startDate: '2026-11-02', endDate: '2026-11-08', status: 'closed', monthId: '2026-11' }
   ],
-  days: F.DAYS.map(d => ({ date: d.date, dow: d.dow, label: d.label, wd: d.wd, dayType: d.dayType })),
+  days: F.DAYS.map(d => ({ date: d.date, dow: d.dow, label: d.label, wd: d.wd, dayType: d.dayType, holiday: d.holiday || '' })),
   slots: F.SLOTS,
   staff,
   requests,
   submissions: Object.fromEntries(Object.entries(submissions).filter(([, v]) => v)
     .map(([k]) => [k, { method: 'usual', at: '2026-10-28' }])),
-  demand: { weekday: F.BASE_DEMAND, weekend: F.BASE_DEMAND },
+  demand: { weekday: F.BASE_DEMAND, weekend: F.BASE_DEMAND, holiday: F.BASE_DEMAND },
+  busy,
   rules: { leader: true, peak3: true, close: true, ng: true, rookie: true },
   ruleLevels: { leader: 'error', peak3: 'error', close: 'error', ng: 'error', rookie: 'warn' },
   ruleLabels: LABELS,

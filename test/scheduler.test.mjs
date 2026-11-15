@@ -5,7 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { generate, checks, sidesOf, isTrainee, endLimitOf } from '../web/js/scheduler.js';
+import { generate, checks, sidesOf, isTrainee, endLimitOf, levelOf, needAt } from '../web/js/scheduler.js';
 import { buildInput, DAYS, SLOTS, GRID, CLOSE_MIN, TYPE_END_LIMIT } from './fixtures.mjs';
 
 const byId = (input, id) => input.staff.find(s => s.id === id);
@@ -115,7 +115,7 @@ test('ルールを全部 OFF にしたら、不足以外のチェックが出な
 test('チェックが日ごとに返り、既知の種類だけを含む', () => {
   const input = buildInput();
   const shifts = generate(input);
-  const kinds = new Set(['不足', '責任者', 'ピーク', '締め', 'NG', '研修中', '時間外']);
+  const kinds = new Set(['不足', '責任者', 'ピーク', '締め', 'NG', '研修中', '時間外', '担当外']);
   for (const d of DAYS) {
     for (const c of checks(input, shifts, d.date)) {
       assert.ok(kinds.has(c.kind), `知らない種類: ${c.kind}`);
@@ -145,12 +145,13 @@ test('自動作成した結果に「時間外」のチェックは出ない', ()
   }
 });
 
-test('担当業務どおりの side にしか入らない', () => {
+test('スキルが0の side には入らない', () => {
   const input = buildInput();
   for (const s of generate(input)) {
     const staff = byId(input, s.staffId);
-    assert.ok(sidesOf(staff).includes(s.side),
-      `${staff.name}（${staff.duty}）が ${s.side} に入っている`);
+    assert.ok(levelOf(staff, s.side) >= 1,
+      `${staff.name}（${JSON.stringify(staff.lv)}）が ${s.side} に入っている`);
+    assert.ok(sidesOf(staff).includes(s.side));
   }
 });
 
@@ -176,17 +177,72 @@ test('endLimitOf() が区分ごとの上限を返す', () => {
   }
 });
 
-test('研修中の人が1人きりにならない（rookie が ON のとき）', () => {
+test('レベル1の人は、同じ側にレベル2以上がいる時間にしか入らない（rookie が ON のとき）', () => {
   const input = buildInput();
   const shifts = generate(input);
-  const trainees = input.staff.filter(isTrainee);
-  assert.ok(trainees.length > 0, 'サンプルに研修中がいない（前提が崩れている）');
+  const trainees = input.staff.filter(s => isTrainee(s));
+  assert.ok(trainees.length > 0, 'サンプルにレベル1の人がいない（前提が崩れている）');
 
-  // 警告として出るのは許すが、チェックの種類としては「研修中」で出ること
-  for (const d of DAYS) {
-    for (const c of checks(input, shifts, d.date)) {
-      if (c.kind === '研修中') assert.equal(c.level, 'warn');
+  for (const x of shifts) {
+    const staff = byId(input, x.staffId);
+    if (levelOf(staff, x.side) !== 1) continue;
+    for (let m = x.start; m < x.end; m += GRID) {
+      const ok = shifts.some(y => y !== x && y.date === x.date && y.side === x.side
+        && y.start <= m && m < y.end && levelOf(byId(input, y.staffId), x.side) >= 2);
+      assert.ok(ok, `${staff.name}（レベル1）が ${x.date} ${m / 60}時に1人`);
     }
+  }
+  for (const d of DAYS) {
+    for (const c of checks(input, shifts, d.date)) assert.notEqual(c.kind, '研修中', c.message);
+  }
+});
+
+test('スキルが0の側に手で入れるとチェックで出る', () => {
+  const input = buildInput();
+  const sato = byId(input, 's01');                  // 佐藤：ホールだけ
+  const shifts = [{ date: DAYS[0].date, staffId: 's01', side: 'kitchen', start: 600, end: 900 }];
+  assert.equal(levelOf(sato, 'kitchen'), 0);
+  assert.ok(checks(input, shifts, DAYS[0].date).some(c => c.kind === '担当外'));
+});
+
+test('祝日は祝日の表を使う（土日と同じくピーク加算も付く）', () => {
+  const holidayTable = { hall: SLOTS.map(() => 5), kitchen: SLOTS.map(() => 5) };
+  const input = buildInput();
+  input.demand = { ...input.demand, holiday: holidayTable };
+  const hol = DAYS.find(d => d.dayType === 'holiday');
+  const wd = DAYS.find(d => d.dayType === 'weekday');
+  const peakI = SLOTS.indexOf(12 * 60), offI = SLOTS.indexOf(9 * 60);
+  assert.equal(needAt(input, hol, 'hall', offI), 5);
+  assert.equal(needAt(input, hol, 'hall', peakI), 5 + input.weekendPeakBoost);
+  assert.equal(needAt(input, wd, 'hall', peakI), input.demand.weekday.hall[peakI]);
+});
+
+test('祝日の表が無ければ土日の表を使う', () => {
+  const input = buildInput();
+  const { holiday, ...rest } = input.demand;
+  input.demand = rest;
+  const hol = DAYS.find(d => d.dayType === 'holiday');
+  assert.equal(needAt(input, hol, 'hall', 0), input.demand.weekend.hall[0]);
+});
+
+test('繁忙期は期間と時間帯の中だけ人数を足す', () => {
+  const input = buildInput({
+    busy: [{ name: 'テスト', start: '2026-11-05', end: '2026-11-06', hall: 2, kitchen: 1, ranges: [[11 * 60, 14 * 60]] }]
+  });
+  const thu = DAYS[3], fri = DAYS[4], wed = DAYS[2];
+  const i12 = SLOTS.indexOf(12 * 60), i15 = SLOTS.indexOf(15 * 60);
+  const base = buildInput();
+  assert.equal(needAt(input, thu, 'hall', i12), needAt(base, thu, 'hall', i12) + 2);
+  assert.equal(needAt(input, fri, 'kitchen', i12), needAt(base, fri, 'kitchen', i12) + 1);
+  assert.equal(needAt(input, thu, 'hall', i15), needAt(base, thu, 'hall', i15));   // 時間帯の外
+  assert.equal(needAt(input, wed, 'hall', i12), needAt(base, wed, 'hall', i12));   // 期間の外
+});
+
+test('繁忙期の時間帯を空にすると一日中足す', () => {
+  const input = buildInput({ busy: [{ start: '2026-11-02', end: '2026-11-02', hall: 1, kitchen: 0, ranges: [] }] });
+  const base = buildInput();
+  for (let i = 0; i < SLOTS.length; i++) {
+    assert.equal(needAt(input, DAYS[0], 'hall', i), needAt(base, DAYS[0], 'hall', i) + 1);
   }
 });
 

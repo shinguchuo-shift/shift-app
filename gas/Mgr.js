@@ -9,7 +9,8 @@ function mgrLoad(req, p) {
   // この画面で要るシートを、通信1回でまとめて読む。
   // 1枚ずつ読むと10枚で3秒ほどかかる（docs/03「速さについて」）。
   prefetchTables(['Settings', 'Staff', 'Periods',
-                  'Submissions', 'Requests', 'Demand', 'Rules', 'Shifts', 'DayNotes']);
+                  'Submissions', 'Requests', 'Demand', 'Rules', 'Shifts', 'DayNotes',
+                  'Holidays', 'BusyPeriods']);
 
   requireManager(req);
 
@@ -39,7 +40,11 @@ function mgrLoad(req, p) {
       id: s.staff_id, name: s.name, type: s.type, role: s.role,
       capMin: Number(s.weekly_cap_min) || 0,
       leader: s.leader === true, closer: s.closer === true,
-      duty: s.duty || 'both',
+      // スキルの段階（0〜3）。ホール・キッチン別。
+      // シートを直す前（「担当業務」の列のまま）でも動くよう、そのときは担当業務から読み替える
+      lv: (s.hall_lv === undefined && s['担当業務'] !== undefined)
+        ? levelsFromDuty_(s['担当業務'])
+        : { hall: Number(s.hall_lv) || 0, kitchen: Number(s.kitchen_lv) || 0 },
       ng: String(s.ng_staff_ids || '').split(',').map(function (x) { return x.trim(); }).filter(Boolean),
       colorHue: Number(s.color_hue) || 0,
       memo: s.memo || ''
@@ -65,12 +70,33 @@ function mgrLoad(req, p) {
     .forEach(function (r) { submissions[r.staff_id] = { method: r.method, at: r.updated_at }; });
 
   // 必要人数
-  var demand = { weekday: { hall: [], kitchen: [] }, weekend: { hall: [], kitchen: [] } };
+  var demand = { weekday: { hall: [], kitchen: [] }, weekend: { hall: [], kitchen: [] },
+                 holiday: { hall: [], kitchen: [] } };
   readTable('Demand').sort(function (a, b) { return a.start_min - b.start_min; })
     .forEach(function (r) {
       if (!demand[r.day_type]) return;
       demand[r.day_type].hall.push(Number(r.hall) || 0);
       demand[r.day_type].kitchen.push(Number(r.kitchen) || 0);
+    });
+  // 祝日の行がまだ無いシートでは、土日の表を使う
+  if (!demand.holiday.hall.length) demand.holiday = demand.weekend;
+
+  // 祝日（日付 → 名前）
+  var holidays = {};
+  readTable('Holidays').forEach(function (r) {
+    if (r.date !== '' && r.date !== undefined) holidays[dateKey_(r.date)] = String(r.name || '祝日');
+  });
+
+  // 繁忙期
+  var busy = readTable('BusyPeriods', function (r) { return r.start_date !== '' && r.end_date !== ''; })
+    .map(function (r) {
+      return {
+        name: String(r.name || '繁忙期'),
+        start: dateKey_(r.start_date), end: dateKey_(r.end_date),
+        hall: Number(r.hall) || 0, kitchen: Number(r.kitchen) || 0,
+        ranges: parseHourRanges_(r.hours),
+        hours: String(r.hours || '')
+      };
     });
 
   var rules = {}, ruleLevels = {}, ruleLabels = {};
@@ -98,11 +124,14 @@ function mgrLoad(req, p) {
   for (var i = 0; i < 7; i++) {
     var d = new Date(d0.getTime());
     d.setDate(d.getDate() + i);
+    var key = dateKey_(d);
     days.push({
-      date: dateKey_(d), dow: i,
+      date: key, dow: i,
       label: (d.getMonth() + 1) + '/' + d.getDate(),
       wd: ['月', '火', '水', '木', '金', '土', '日'][i],
-      dayType: i >= 5 ? 'weekend' : 'weekday'
+      // 祝日は土日より優先する（日曜の祝日も「祝日」の表）
+      dayType: holidays[key] ? 'holiday' : (i >= 5 ? 'weekend' : 'weekday'),
+      holiday: holidays[key] || ''
     });
   }
 
@@ -129,7 +158,7 @@ function mgrLoad(req, p) {
       // 区分ごとの終了上限（高校生は22時）。自動作成とチェックの両方で使う
       typeEndLimit: TYPE_END_LIMIT,
       staffTypes: STAFF_TYPES,
-      duties: DUTIES
+      skillLevels: SKILL_LEVELS
     },
     period: {
       id: want, startDate: dateKey_(period.start_date), endDate: dateKey_(period.end_date),
@@ -146,7 +175,7 @@ function mgrLoad(req, p) {
     }),
     days: days, slots: slots,
     staff: staff, requests: requests, submissions: submissions,
-    demand: demand, rules: rules, ruleLevels: ruleLevels, ruleLabels: ruleLabels,
+    demand: demand, busy: busy, rules: rules, ruleLevels: ruleLevels, ruleLabels: ruleLabels,
     shifts: shifts, notes: notes,
     // 開発中の切り分け用。Phase 3 で消す
     _debug: { serverMs: Date.now() - _t0, prefetch: _lastPrefetch }
@@ -325,4 +354,23 @@ function hhmmOf_(v) {
   }
   var m = String(v == null ? '' : v).match(/(\d{1,2}):(\d{2})/);
   return m ? ('0' + m[1]).slice(-2) + ':' + m[2] : '23:59';
+}
+
+/**
+ * 繁忙期の「時間帯」を分の組にする。
+ *   '11-14,17-20' → [[660,840],[1020,1200]]
+ *   '11:30-14' や全角・「〜」も読む。空なら []（＝一日中）
+ */
+function parseHourRanges_(text) {
+  var t = String(text || '')
+    .replace(/[０-９]/g, function (c) { return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); })
+    .replace(/[〜～ー－−—]/g, '-').replace(/[、，\s]+/g, ',').replace(/：/g, ':');
+  var toMin = function (x) {
+    var m = String(x).match(/^(\d{1,2})(?::(\d{2}))?$/);
+    return m ? Number(m[1]) * 60 + Number(m[2] || 0) : NaN;
+  };
+  return t.split(',').filter(Boolean).map(function (part) {
+    var ab = part.split('-');
+    return [toMin(ab[0]), toMin(ab[1])];
+  }).filter(function (r) { return isFinite(r[0]) && isFinite(r[1]) && r[1] > r[0]; });
 }

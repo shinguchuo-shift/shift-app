@@ -22,6 +22,8 @@ var SHEET_NAME = {
   Rules:        'ルール',
   Shifts:       'シフト',
   DayNotes:     '備考',
+  Holidays:     '祝日',
+  BusyPeriods:  '繁忙期',
   Log:          'ログ'
 };
 
@@ -55,7 +57,8 @@ var COLUMNS = {
     ['weekly_cap_min',    '週の上限（時間）'],
     ['leader',            '責任者'],
     ['closer',            '締め作業'],
-    ['duty',              '担当業務'],
+    ['hall_lv',           'ホールのスキル'],
+    ['kitchen_lv',        'キッチンのスキル'],
     ['ng_staff_ids',      '組ませない相手'],
     ['color_hue',         '色'],
     ['memo',              'メモ']
@@ -129,6 +132,22 @@ var COLUMNS = {
     ['text', '備考']
   ],
 
+  // 祝日。ここに入っている日は「祝日」の必要人数の表を使う。店独自の日（年末など）も足してよい
+  Holidays: [
+    ['date', '日付'],
+    ['name', '名前']
+  ],
+
+  // 繁忙期。期間中は、いつもの必要人数にこの人数を足す。時間帯が空なら一日中
+  BusyPeriods: [
+    ['name',       '名前'],
+    ['start_date', '開始日'],
+    ['end_date',   '終了日'],
+    ['hall',       'ホール（増やす人数）'],
+    ['kitchen',    'キッチン（増やす人数）'],
+    ['hours',      '時間帯']
+  ],
+
   Log: [
     ['at',       '日時'],
     ['type',     '種類'],
@@ -165,26 +184,18 @@ var STAFF_TYPES = ['社員', '主婦', '大学生', '高校生'];
 /** 22時を超えて入れられない区分（分で持つ） */
 var TYPE_END_LIMIT = { '高校生': 22 * 60 };
 
-/** 担当業務。trainee（研修中）はどちらにも入るが、1人にしない。 */
-var DUTIES = [
-  ['hall',    'ホール'],
-  ['kitchen', 'キッチン'],
-  ['both',    '両方'],
-  ['trainee', '研修中']
-];
-
-/** 担当業務から、入れる側を返す。 */
-function sidesOfDuty(duty) {
-  if (duty === 'hall') return ['hall'];
-  if (duty === 'kitchen') return ['kitchen'];
-  return ['hall', 'kitchen'];      // both / trainee
-}
+/**
+ * スキルの段階。ホール・キッチンそれぞれに持つ。
+ *  0 入らない／1 一人でできない／2 一人でできる／3 人に教えられる
+ * レベル1の人は、同じ側にレベル2以上がいる時間にしか入れない（自動作成で止める）。
+ */
+var SKILL_LEVELS = { 0: '入らない', 1: '1 一人でできない', 2: '2 一人でできる', 3: '3 教えられる' };
 
 var TEXT_COLUMNS = {
   period_id: true, parent_id: true,
   date: true, start_date: true, end_date: true, deadline_at: true,
   staff_id: true, pos_key: true, rule_key: true,
-  invite_code: true, line_user_id: true, ng_staff_ids: true, duty: true, type: true,
+  invite_code: true, line_user_id: true, ng_staff_ids: true, type: true, hours: true,
   start_min: true, end_min: true, dow: true
 };
 
@@ -200,14 +211,15 @@ var VALUE_MAPS = {
   dow: { 0: '月', 1: '火', 2: '水', 3: '木', 4: '金', 5: '土', 6: '日' },
   rule_key: { leader: '責任者', peak3: 'ピーク帯', close: '締め', ng: '組み合わせNG', rookie: '研修中' },
   role:     { staff: 'スタッフ', manager: '店長' },
-  duty:     { hall: 'ホール', kitchen: 'キッチン', both: '両方', trainee: '研修中' },
+  hall_lv:    SKILL_LEVELS,
+  kitchen_lv: SKILL_LEVELS,
   side:     { hall: 'ホール', kitchen: 'キッチン' },
   kind:     { month: '月の暫定', week: '週の確認' },
   status:   { draft: '準備中', open: '受付中', closed: '締切後', published: '確定済み' },
   method:   { usual: 'いつも通り', custom: '変更あり' },
-  day_type: { weekday: '平日', weekend: '土日' },
+  day_type: { weekday: '平日', weekend: '土日', holiday: '祝日' },
   level:    { error: '必須', warn: '注意' },
-  source:   { auto: '自動作成', manual: '手直し' },
+  source:   { auto: '自動作成', manual: '手直し', added: '手で追加' },
   type:     { setup: '初期設定', error: 'エラー', publish: '確定',
               shiftsheet_overflow: '行あふれ' }
 };
@@ -292,14 +304,15 @@ function dropdownsOf(sheetKey) {
     Staff: {
       type: STAFF_TYPES,                 // 社員 / 主婦 / 大学生 / 高校生
       role: jp('role'),                  // スタッフ / 店長
-      duty: jp('duty')                   // ホール / キッチン / 両方 / 研修中
+      hall_lv: jp('hall_lv'),            // 入らない / 1 一人でできない / 2 一人でできる / 3 教えられる
+      kitchen_lv: jp('kitchen_lv')
     },
     Periods: {
       kind: jp('kind'),                  // 月の暫定 / 週の確認
       status: jp('status')               // 準備中 / 受付中 / 締切後 / 確定済み
     },
     Demand: {
-      day_type: jp('day_type')           // 平日 / 土日
+      day_type: jp('day_type')           // 平日 / 土日 / 祝日
     },
     Rules: {
       level: jp('level')                 // 必須 / 注意
