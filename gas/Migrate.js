@@ -63,31 +63,35 @@ function migrateV2() {
   var staffSh = ss.getSheetByName(tabOf('Staff'));
   var head = staffSh ? staffSh.getRange(1, 1, 1, staffSh.getLastColumn()).getValues()[0] : [];
   if (staffSh && head.indexOf('担当業務') >= 0 && head.indexOf('ホールのスキル') < 0) {
-    // 見出しに無い列（担当業務）は、日本語の見出しのままキーになって読める
-    var rows = readTable('Staff').map(function (s) {
-      var lv = levelsFromDuty_(s['担当業務']);
-      return keysOf('Staff').map(function (k) {
-        if (k === 'hall_lv') return lv.hall;
-        if (k === 'kitchen_lv') return lv.kitchen;
-        return s[k] === undefined ? '' : s[k];
-      });
+    // シートを書き直さず、「担当業務」の列だけをその場で2列に分ける。
+    // ほかの列（名前・LINEユーザーID・店長が足した列など）には一切さわらない
+    var dcol = head.indexOf('担当業務') + 1;
+    var idCol = head.indexOf('スタッフID') + 1;
+    var last = staffSh.getLastRow();
+    var duty = last > 1 ? staffSh.getRange(2, dcol, last - 1, 1).getValues() : [];
+    var ids = (last > 1 && idCol > 0) ? staffSh.getRange(2, idCol, last - 1, 1).getValues() : duty;
+    var n = 0;
+    var vals = duty.map(function (d, i) {
+      if (String(ids[i][0]).trim() === '' && String(d[0]).trim() === '') return ['', ''];   // 空の行
+      n++;
+      var lv = levelsFromDuty_(d[0]);
+      return [SKILL_LEVELS[lv.hall], SKILL_LEVELS[lv.kitchen]];
     });
-    var before = staffSh.getMaxRows();
-    writeTable('Staff', rows);
-    // 60人分の欄（プルダウン）を保つ
-    if (staffSh.getMaxRows() < before) staffSh.insertRowsAfter(staffSh.getMaxRows(), before - staffSh.getMaxRows());
+    staffSh.insertColumnAfter(dcol);
+    staffSh.getRange(1, dcol, staffSh.getMaxRows(), 2).clearDataValidations();
+    staffSh.getRange(1, dcol, 1, 2).setValues([['ホールのスキル', 'キッチンのスキル']]);
+    if (vals.length) staffSh.getRange(2, dcol, vals.length, 2).setValues(vals);
+    invalidateTable('Staff');
     applyDropdowns('Staff');
-    done.push('スタッフ：担当業務をホール・キッチンのスキルに分けました（' + rows.length + '人）');
+    done.push('スタッフ：担当業務をホール・キッチンのスキルに分けました（' + n + '人）');
   }
 
   // 2. 必要人数：祝日の行（はじめは土日と同じ）
   var demand = readTable('Demand');
   if (!demand.some(function (r) { return r.day_type === 'holiday'; })) {
-    // 1行ずつ足すと「08:00」が時刻に変わってしまうので、表ごと書き直す（書式なしテキストを保つ）
-    var keep = demand.map(function (r) { return [r.day_type, r.start_min, r.hall, r.kitchen]; });
-    var add = demand.filter(function (r) { return r.day_type === 'weekend'; })
-      .map(function (r) { return ['holiday', r.start_min, r.hall, r.kitchen]; });
-    writeTable('Demand', keep.concat(add));
+    // 下に行を足すだけ（シートは書き直さない）。「08:00」が時刻に変わらないよう書式なしテキストで入れる
+    appendRowsByHeader_('Demand', demand.filter(function (r) { return r.day_type === 'weekend'; })
+      .map(function (r) { return { day_type: 'holiday', start_min: r.start_min, hall: r.hall, kitchen: r.kitchen }; }));
     done.push('必要人数：祝日の行を足しました（土日と同じ人数。あとで直してください）');
   }
 
@@ -130,7 +134,9 @@ function migrateV2() {
     })), stt));
   });
   if (addWeeks.length) {
-    writePeriodsWith_(periods, addWeeks);
+    appendRowsByHeader_('Periods', addWeeks.map(function (w) {
+      var o = {}; keysOf('Periods').forEach(function (k, i) { o[k] = w[i]; }); return o;
+    }));
     done.push('期間：足りない週を作りました（' + addWeeks.map(function (w) { return w[0]; }).join('、') + '）');
   }
 

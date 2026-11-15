@@ -169,6 +169,31 @@ function readSettings() {
   return out;
 }
 
+/**
+ * 何行かをシートの下に足す。列は見出しの名前で合わせ、ほかの列や今ある行にはさわらない。
+ * 文字列で持ちたい列は、足す行だけ書式なしテキストにしてから入れる（'08:00' や '2026-11-09' が化けないように）。
+ * @param {string} key  'Periods' などコードのキー
+ * @param {Array<Object>} objs コードのキー → 値
+ */
+function appendRowsByHeader_(key, objs) {
+  if (!objs.length) return;
+  invalidateTable(key);
+  var sh = sheetOf(key);
+  var header = sh.getRange(1, 1, 1, Math.max(sh.getLastColumn(), 1)).getValues()[0]
+    .map(function (h) { return String(h).trim(); });
+  var toKey = headerToKey(key);
+  var keys = header.map(function (h) { return toKey[h] || null; });
+  var start = sh.getLastRow() + 1;
+  keys.forEach(function (k, c) {
+    if (k && TEXT_COLUMNS[k]) sh.getRange(start, c + 1, objs.length, 1).setNumberFormat('@');
+  });
+  sh.getRange(start, 1, objs.length, header.length).setValues(objs.map(function (o) {
+    return keys.map(function (k) {
+      return (k && o[k] !== undefined) ? toSheetValue(key, k, o[k]) : '';
+    });
+  }));
+}
+
 /** 1行だけ追記する。 */
 function appendRowTo(key, obj) {
   invalidateTable(key);
@@ -213,11 +238,15 @@ function applyDropdowns(key) {
   if (!sh) return 0;
 
   var rows = Math.max(sh.getMaxRows() - 1, 1);
-  var cols = keysOf(key);
+  // 列は見出しの名前で探す（店長が列を足したり並べ替えたりしていても、正しい列にかける）
+  var header = sh.getRange(1, 1, 1, Math.max(sh.getLastColumn(), 1)).getValues()[0]
+    .map(function (h) { return String(h).trim(); });
+  var jp = {};
+  COLUMNS[key].forEach(function (c) { jp[c[0]] = c[1]; });
   var n = 0;
 
   Object.keys(lists).forEach(function (col) {
-    var i = cols.indexOf(col);
+    var i = header.indexOf(jp[col]);
     if (i < 0) return;
     var rule = SpreadsheetApp.newDataValidation()
       .requireValueInList(lists[col], true)       // true = セルに ▼ を出す

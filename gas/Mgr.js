@@ -292,7 +292,10 @@ function mgrOpenPeriod(req, p) {
   // 月も週もそろっているなら、作るものは無い
   if (monthExists && !weeks.length) throw apiError('exists', monthId + ' はもう作られています');
 
-  writePeriodsWith_(existing, extra.concat(weekRows));
+  // 期間シートは書き直さず、下に行を足す
+  appendRowsByHeader_('Periods', extra.concat(weekRows).map(function (w) {
+    var o = {}; keysOf('Periods').forEach(function (k, i) { o[k] = w[i]; }); return o;
+  }));
 
   appendRowTo('Log', {
     at: new Date(), type: 'publish', staff_id: '',
@@ -377,15 +380,4 @@ function missingWeekRows_(monthId, existing, st) {
     d.setDate(d.getDate() + 7);
   }
   return rows;
-}
-
-/** 期間シートを、今の行＋足す行で書き直す（日付は文字列にそろえる）。 */
-function writePeriodsWith_(existing, add) {
-  var rows = existing.map(function (r) {
-    return keysOf('Periods').map(function (k) {
-      if (k === 'start_date' || k === 'end_date') return dateKey_(r[k]);
-      return r[k] === undefined ? '' : r[k];
-    });
-  });
-  writeTable('Periods', rows.concat(add));
 }
