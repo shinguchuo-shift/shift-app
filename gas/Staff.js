@@ -61,11 +61,20 @@ function daysOf_(period) {
 
 /** スタッフ画面に必要なデータを一度に返す。 */
 function meLoad(req, p) {
-  prefetchTables(['Settings', 'Staff', 'Periods', 'Requests', 'Submissions', 'UsualPattern']);
+  prefetchTables(['Settings', 'Staff', 'Periods', 'Requests', 'Submissions', 'UsualPattern', 'Shifts']);
 
   var me = identify(req);
   var st = readSettings();
   var cur = currentPeriods_();
+
+  // 週のプルダウンに出す週：準備中を除く（受付中・締切後・確定済み）。古い順
+  var allWeeks = readTable('Periods', function (r) { return (r.kind || 'week') === 'week' && r.status !== 'draft'; })
+    .sort(function (a, b) { return dateKey_(a.start_date) < dateKey_(b.start_date) ? -1 : 1; });
+  // 見る週：画面で選んだ週があればそれ、無ければ今の週
+  var pickedWeek = cur.week;
+  if (p && p.weekId) {
+    pickedWeek = allWeeks.filter(function (r) { return String(r.period_id) === String(p.weekId); })[0] || cur.week;
+  }
 
   // いつもの勤務（曜日ごと）
   var usual = {};
@@ -95,16 +104,31 @@ function meLoad(req, p) {
   };
 
   var month = pack(cur.month);
-  var week = pack(cur.week);
+  var week = pack(pickedWeek);
 
-  // 週の初期値：その週がまだ未提出なら、月の暫定から該当日を引っぱってくる
-  if (week && !week.submitted && month) {
+  // 週の初期値：その週がまだ未提出なら、その週が属する月の暫定から該当日を引っぱってくる
+  if (week && !week.submitted) {
+    var parentId = pickedWeek.parent_id ? String(pickedWeek.parent_id) : (month ? month.id : '');
+    var monthReq = month && month.id === parentId ? month.requests : requestsOf_(parentId, me.staff_id);
     var base = {};
     week.days.forEach(function (d) {
-      if (month.requests[d.date]) base[d.date] = month.requests[d.date];
+      if (monthReq[d.date]) base[d.date] = monthReq[d.date];
     });
     week.fromMonth = base;
   }
+
+  // 確定済みの週は、自分の確定シフトも返す
+  if (week && week.status === 'published') {
+    week.confirmed = readTable('Shifts', function (r) {
+      return String(r.period_id) === week.id && r.staff_id === me.staff_id;
+    }).map(function (r) {
+      return { date: dateKey_(r.date), start: Number(r.start_min), end: Number(r.end_min), side: r.side };
+    }).sort(function (a, b) { return a.date < b.date ? -1 : 1; });
+  }
+
+  var weeks = allWeeks.map(function (r) {
+    return { id: String(r.period_id), startDate: dateKey_(r.start_date), endDate: dateKey_(r.end_date), status: r.status };
+  });
 
   return {
     me: {
@@ -122,7 +146,8 @@ function meLoad(req, p) {
     },
     usual: usual,
     month: month,
-    week: week
+    week: week,
+    weeks: weeks
   };
 }
 

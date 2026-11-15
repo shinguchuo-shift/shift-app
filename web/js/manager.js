@@ -4,7 +4,7 @@
  * データは mgr.load で一度に取り、自動作成はこのブラウザで動かす（GAS の時間を使わない）。
  */
 
-import { call, callRetry, ApiError, isMock } from './api.js?v=4';
+import { call, callRetry, ApiError, isMock } from './api.js?v=5';
 import * as liffAuth from './liff-auth.js?v=1';
 import { generate, checksAll, sidesOf, isTrainee, endLimitOf, levelOf, needAt, busyOn, LEVEL_LABEL } from './scheduler.js?v=4';
 

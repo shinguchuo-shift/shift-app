@@ -276,53 +276,27 @@ function mgrOpenPeriod(req, p) {
   var last = new Date(year, mon, 0);               // 月末（0日＝前月の最終日）
 
   var existing = readTable('Periods');
-  if (existing.some(function (r) { return String(r.period_id) === monthId; })) {
-    throw apiError('exists', monthId + ' はもう作られています');
-  }
+  var monthExists = existing.some(function (r) { return String(r.period_id) === monthId; });
 
   var st = readSettings();
-  var dow = Number(st.deadline_dow);               // 0=月 … 6=日
-  // deadline_time は '23:59' と書いてあっても、シートが時刻型に変換して Date で返すことがある
   var time = hhmmOf_(st.deadline_time);
-
-  var rows = existing.map(function (r) {
-    return keysOf('Periods').map(function (k) {
-      if (k === 'start_date' || k === 'end_date') return dateKey_(r[k]);
-      return r[k];
-    });
-  });
-
-  // 月の暫定。〆切は前月末
-  var monthDeadline = p.monthDeadline || (fmtDate_(new Date(year, mon - 1, 0)) + ' ' + time);
-  rows.push([monthId, 'month', '', fmtDate_(first), fmtDate_(last), monthDeadline, 'open', 1]);
-
-  // その月に「月曜」がある週をすべて作る（月初の週は前月から始まることがある）
-  var weeks = [];
-  var d = new Date(first.getTime());
-  d.setDate(d.getDate() - ((d.getDay() + 6) % 7));   // その週の月曜まで戻す
-  while (d <= last) {
-    var start = new Date(d.getTime());
-    var end = new Date(d.getTime());
-    end.setDate(end.getDate() + 6);
-
-    // 〆切は、その週が始まる前の設定曜日
-    var dl = new Date(start.getTime());
-    dl.setDate(dl.getDate() - (7 - (isNaN(dow) ? 3 : dow)));
-
-    var wid = fmtDate_(start);
-    if (!existing.some(function (r) { return String(r.period_id) === wid; })) {
-      rows.push([wid, 'week', monthId, fmtDate_(start), fmtDate_(end),
-                 fmtDate_(dl) + ' ' + time, 'draft', 1]);
-      weeks.push(wid);
-    }
-    d.setDate(d.getDate() + 7);
+  var extra = [];
+  if (!monthExists) {
+    // 月の暫定。〆切は前月末
+    var monthDeadline = p.monthDeadline || (fmtDate_(new Date(year, mon - 1, 0)) + ' ' + time);
+    extra.push([monthId, 'month', '', fmtDate_(first), fmtDate_(last), monthDeadline, 'open', 1]);
   }
+  var weekRows = missingWeekRows_(monthId, existing, st);
+  var weeks = weekRows.map(function (r) { return r[0]; });
 
-  writeTable('Periods', rows);
+  // 月も週もそろっているなら、作るものは無い
+  if (monthExists && !weeks.length) throw apiError('exists', monthId + ' はもう作られています');
+
+  writePeriodsWith_(existing, extra.concat(weekRows));
 
   appendRowTo('Log', {
     at: new Date(), type: 'publish', staff_id: '',
-    detail: monthId + ' を開きました（週 ' + weeks.length + '件）'
+    detail: monthId + (monthExists ? ' の足りない週を作りました' : ' を開きました') + '（週 ' + weeks.length + '件）'
   });
 
   return { monthId: monthId, weeks: weeks };
@@ -373,4 +347,45 @@ function parseHourRanges_(text) {
     var ab = part.split('-');
     return [toMin(ab[0]), toMin(ab[1])];
   }).filter(function (r) { return isFinite(r[0]) && isFinite(r[1]) && r[1] > r[0]; });
+}
+
+/**
+ * その月の週のうち、まだ無いものの行を返す（期間シートの列の並び）。
+ * 週は「月曜がその月に入っている週」。11月なら 11/2・9・16・23・30 の5週。
+ * 〆切は、その週が始まる前の設定曜日（既定は木曜）。
+ */
+function missingWeekRows_(monthId, existing, st) {
+  var m = String(monthId).match(/^(\d{4})-(\d{2})$/);
+  if (!m) return [];
+  var year = Number(m[1]), mon = Number(m[2]);
+  var last = new Date(year, mon, 0);
+  var dow = Number(st.deadline_dow);               // 0=月 … 6=日
+  var time = hhmmOf_(st.deadline_time);
+  var have = {};
+  existing.forEach(function (r) { have[String(r.period_id)] = true; });
+
+  var d = new Date(year, mon - 1, 1);
+  d.setDate(d.getDate() + ((7 - ((d.getDay() + 6) % 7)) % 7));   // その月の最初の月曜まで進める
+  var rows = [];
+  while (d <= last) {
+    var start = new Date(d.getTime());
+    var end = new Date(d.getTime()); end.setDate(end.getDate() + 6);
+    var dl = new Date(start.getTime());
+    dl.setDate(dl.getDate() - (7 - (isNaN(dow) ? 3 : dow)));
+    var wid = fmtDate_(start);
+    if (!have[wid]) rows.push([wid, 'week', monthId, fmtDate_(start), fmtDate_(end), fmtDate_(dl) + ' ' + time, 'draft', 1]);
+    d.setDate(d.getDate() + 7);
+  }
+  return rows;
+}
+
+/** 期間シートを、今の行＋足す行で書き直す（日付は文字列にそろえる）。 */
+function writePeriodsWith_(existing, add) {
+  var rows = existing.map(function (r) {
+    return keysOf('Periods').map(function (k) {
+      if (k === 'start_date' || k === 'end_date') return dateKey_(r[k]);
+      return r[k] === undefined ? '' : r[k];
+    });
+  });
+  writeTable('Periods', rows.concat(add));
 }

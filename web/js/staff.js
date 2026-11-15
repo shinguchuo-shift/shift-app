@@ -8,7 +8,7 @@
  * ②の初期値は「いつもの勤務」ではなく **①で出した暫定**。ここがこの店のやり方の肝。
  */
 
-import { call, callRetry, ApiError, isMock } from './api.js?v=4';
+import { call, callRetry, ApiError, isMock } from './api.js?v=5';
 import * as liffAuth from './liff-auth.js?v=1';
 
 const $ = id => document.getElementById(id);
@@ -24,6 +24,7 @@ let devStaffId = null;    // 開発中だけ。LINE から開けば要らない
 let mode = 'home';        // home | editMonth | editWeek | done
 let view = null;          // 'month' | 'week'。①②のどちらを見ているか
 let draft = null;         // 入力中の内容
+let weekId = null;        // 週のプルダウンで選んだ週（null なら今の週）
 
 init();
 
@@ -61,7 +62,7 @@ async function load() {
   const tick = setInterval(() => { if (!paint()) clearInterval(tick); }, 400);
 
   try {
-    D = await call('me', {}, { devStaffId, idToken: liffAuth.getIdToken() });
+    D = await call('me', weekId ? { weekId } : {}, { devStaffId, idToken: liffAuth.getIdToken() });
     mode = 'home';
     render();
     setupDevBar();
@@ -239,8 +240,10 @@ function renderHome(el) {
         <p class="sub">${esc(D.me.type)}・週の上限 ${D.me.capMin / 60}時間${
           D.settings.endLimit < D.settings.closeMin
             ? `・${hm(D.settings.endLimit)}まで` : ''}</p></div>
-      <span class="pill ${target && target.submitted ? 'ok' : 'ng'}">${
-        target && target.submitted ? '提出済み' : '未提出'}</span>
+      ${target && target.kind === 'week' && target.status === 'published'
+        ? '<span class="pill ok">確定済み</span>'
+        : `<span class="pill ${target && target.submitted ? 'ok' : 'ng'}">${
+          target && target.submitted ? '提出済み' : '未提出'}</span>`}
     </div>
     ${stepsBar(showWeek ? 'week' : 'month')}`;
 
@@ -277,12 +280,49 @@ function renderMonthHome(m) {
   return html;
 }
 
+/** 週の状態の呼び名。 */
+const STATUS = { open: '受付中', closed: '締切後', published: '確定済み', draft: '準備中' };
+
+/** 週のプルダウン。受付中・締切後・確定済みの週を選んで、いつでも見られる。 */
+function weekPicker(w) {
+  const list = (D.weeks || []).slice();
+  if (!list.some(x => x.id === w.id)) list.push({ id: w.id, startDate: w.startDate, endDate: w.endDate, status: w.status });
+  list.sort((a, b) => a.startDate < b.startDate ? -1 : 1);
+  const opts = list.map(x => `<option value="${esc(x.id)}"${x.id === w.id ? ' selected' : ''}>`
+    + `${fmt(x.startDate)}〜${fmt(x.endDate)}（${STATUS[x.status] || x.status}）</option>`).join('');
+  return `<label class="wkpick">週を選ぶ <select id="wkSel">${opts}</select></label>`;
+}
+
+/** 確定したシフト（自分の分）を7日ぶん並べる。 */
+function confirmedList(w) {
+  const by = {};
+  (w.confirmed || []).forEach(x => { by[x.date] = x; });
+  const SIDE = { hall: 'ホール', kitchen: 'キッチン' };
+  return `<ul class="pat">${w.days.map(d => {
+    const x = by[d.date];
+    return `<li class="${d.dow === 5 ? 'we' : d.dow === 6 ? 'sun' : ''}">
+      <span>${d.label}（${d.wd}）</span>
+      <b class="${x ? '' : 'off'}">${x ? `${hm(x.start)}〜${hm(x.end)}<span class="tagc side">${SIDE[x.side] || ''}</span>` : '休み'}</b></li>`;
+  }).join('')}</ul>`;
+}
+
 /** ② 週の確認 */
 function renderWeekHome(w, m) {
   const base = w.submitted ? w.requests : (w.fromMonth || {});
   const hasBase = Object.keys(base).length > 0;
 
-  let html = `<p class="dl">${fmt(w.startDate)}〜${fmt(w.endDate)} の希望　〆切 ${esc(w.deadline)}<br>
+  // 確定済みの週：確定したシフトを見せる（希望はたたんでおく）。直すことはできない
+  if (w.status === 'published') {
+    const n = (w.confirmed || []).length;
+    return weekPicker(w)
+      + `<p class="dl">${fmt(w.startDate)}〜${fmt(w.endDate)} のシフト（確定済み）</p>
+      <div class="box conf"><p class="eyebrow">確定したシフト（${n}日）</p>${confirmedList(w)}</div>
+      ${w.submitted ? `<details class="box"><summary class="eyebrow">出した希望を見る</summary>
+        ${weekList(w.days, w.requests, m)}</details>` : ''}
+      <p class="small">変えたいときは店長に相談してください。</p>`;
+  }
+
+  let html = weekPicker(w) + `<p class="dl">${fmt(w.startDate)}〜${fmt(w.endDate)} の希望　〆切 ${esc(w.deadline)}<br>
     <span class="small">〆切までは何度でも直せます</span></p>`;
 
   if (w.submitted) {
@@ -617,7 +657,7 @@ async function send(periodId, days, method, msg) {
   try {
     const auth = { devStaffId, idToken: liffAuth.getIdToken() };
     await callRetry('me.submit', { periodId, days, method }, auth);
-    D = await call('me', {}, auth);
+    D = await call('me', D.week ? { weekId: D.week.id } : {}, auth);   // 見ていた週のまま
     view = (D.month && periodId === D.month.id) ? 'month' : 'week';
     draft = null;
     mode = 'done';
@@ -673,6 +713,13 @@ function bind() {
     send(D.month.id, days, 'usual', `${monthLabel(D.month)}の暫定を出しました（${days.length}日）`);
   });
   on('mSubmit', submitMonth);
+  if ($('wkSel')) $('wkSel').onchange = e => {
+    weekId = e.target.value;
+    view = 'week';
+    draft = null;
+    $('body').innerHTML = '<div class="state" id="state">読み込んでいます…</div>';
+    load();
+  };
   on('wOk', () => submitWeek(true));
   on('wSubmit', () => submitWeek(false));
 }

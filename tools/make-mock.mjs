@@ -62,6 +62,9 @@ const mgr = {
   },
   period: { id: '2026-11-02', startDate: '2026-11-02', endDate: '2026-11-08', status: 'closed', revision: 1, monthId: '2026-11' },
   weeks: [
+    { id: '2026-11-30', startDate: '2026-11-30', endDate: '2026-12-06', status: 'draft', monthId: '2026-11' },
+    { id: '2026-11-23', startDate: '2026-11-23', endDate: '2026-11-29', status: 'draft', monthId: '2026-11' },
+    { id: '2026-11-16', startDate: '2026-11-16', endDate: '2026-11-22', status: 'draft', monthId: '2026-11' },
     { id: '2026-11-09', startDate: '2026-11-09', endDate: '2026-11-15', status: 'draft', monthId: '2026-11' },
     { id: '2026-11-02', startDate: '2026-11-02', endDate: '2026-11-08', status: 'closed', monthId: '2026-11' }
   ],
@@ -119,6 +122,26 @@ function meFor(sid, { monthOpen, monthSubmitted, weekSubmitted }) {
 
 // 週の確認がまだの高校生（「このままで提出」の画面）
 const weekScene = meFor('s07', { monthOpen: false, monthSubmitted: true, weekSubmitted: false });
+
+/**
+ * 週のプルダウン用：前の週（10/26〜11/1）は確定済み、という見本。
+ * 確定シフトは、11/2の週に自動作成した分を1週前にずらして作る（架空）。
+ */
+const shiftDate = (d, n) => { const x = new Date(d + 'T00:00:00'); x.setDate(x.getDate() + n); return key(x); };
+function pastWeekFor(sid) {
+  const days = daysOf('2026-10-26', '2026-11-01');
+  const confirmed = shifts.filter(x => x.staffId === sid)
+    .map(x => ({ date: shiftDate(x.date, -7), start: x.start, end: x.end, side: x.side }))
+    .sort((a, b) => a.date < b.date ? -1 : 1);
+  const requests = {};
+  confirmed.forEach(x => { requests[x.date] = { start: x.start, end: x.end }; });
+  return { id: '2026-10-26', kind: 'week', startDate: '2026-10-26', endDate: '2026-11-01',
+    deadline: '2026-10-22 23:59', status: 'published', days, requests, submitted: true, method: 'usual', confirmed };
+}
+const staffWeeks = [
+  { id: '2026-10-26', startDate: '2026-10-26', endDate: '2026-11-01', status: 'published' },
+  { id: '2026-11-02', startDate: '2026-11-02', endDate: '2026-11-08', status: 'open' }
+];
 // 月の暫定がまだの大学生（月の入力・カレンダーの画面）
 const monthScene = meFor('s03', { monthOpen: true, monthSubmitted: false, weekSubmitted: false });
 
@@ -126,7 +149,9 @@ const data = {
   // 店長
   mgr: { mgr },
   // スタッフ：週の確認
-  week: { me: weekScene, mgr },
+  week: { me: { ...weekScene, weeks: staffWeeks }, meWeeks: { '2026-10-26': pastWeekFor('s07') }, mgr },
+  // スタッフ：確定済みの週を見ているところ（高橋）
+  pub: { me: { ...meFor('s03', { monthOpen: false, monthSubmitted: true, weekSubmitted: true }), week: pastWeekFor('s03'), weeks: staffWeeks }, mgr },
   // スタッフ：月の暫定
   month: { me: monthScene, mgr },
   // スタッフ：はじめて（招待コードの入力）

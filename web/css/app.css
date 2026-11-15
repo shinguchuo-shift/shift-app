@@ -265,3 +265,15 @@ table.wk th.day .addrow:hover { background: var(--accent-soft); }
 
 ul.busylist { margin: 6px 0 0; padding-left: 18px; font-size: 13px; }
 ul.busylist li { margin-bottom: 4px; }
+
+/* 対象週とタブを画面の上に固定（シフト表を下にスクロールしても週を切り替えられる） */
+.stick { position: sticky; top: 0; z-index: 30; background: var(--bg);
+  margin: 0 -16px 14px; padding: 8px 16px 8px; box-shadow: 0 6px 8px -8px rgba(0,0,0,.25); }
+.stick .lead { color: var(--sub); font-size: 13px; margin: 0 0 8px; }
+.stick .tabs { margin-bottom: 0; }
+/* スマホでは固定部分が場所を取りすぎないよう、タブを1列にして説明文を隠す */
+@media (max-width: 700px) {
+  .stick .tabs { flex-wrap: nowrap; gap: 5px; }
+  .stick .tab { flex: 1 1 0; min-width: 0; padding: 8px 4px; font-size: 13px; }
+  .stick .tab small { display: none; }
+}

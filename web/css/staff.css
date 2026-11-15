@@ -159,3 +159,12 @@ ul.pat .tagc { font-size: 10px; color: var(--accent); margin-left: 6px; }
   border: 1px solid var(--line-strong); border-radius: 9px; font-family: inherit;
 }
 .codein:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+
+/* 週のプルダウン（受付中・締切後・確定済みの週をいつでも見られる） */
+.wkpick { display: flex; align-items: center; gap: 8px; margin: 12px 0 0; font-size: 12px; color: var(--sub); }
+.wkpick select { flex: 1; font-size: 14px; padding: 7px 8px; border: 1px solid var(--line, #d0d5dc); border-radius: 8px; background: #fff; }
+/* 確定したシフト */
+.box.conf { background: #eef6ff; border: 1px solid #c9ddf7; }
+.tagc.side { background: #fff; }
+details.box summary { cursor: pointer; }
+ul.pat li .tagc.side, ul.pat li.we .tagc.side, ul.pat li.sun .tagc.side { color: #2753c9; }

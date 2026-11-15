@@ -16,6 +16,12 @@ var RULE_LABELS_V2 = {
   rookie: 'レベル1の人は、同じ側にレベル2以上がいる時間にだけ入れる'
 };
 
+/** 以前の説明文。これと同じなら新しい説明文に置き換える。 */
+var RULE_LABELS_V1 = {
+  peak3: 'ピーク帯はホール・キッチンそれぞれ研修中でない人を1人以上',
+  rookie: '研修中の人を1人きりにしない'
+};
+
 /** 日本の祝日（2026〜2027年）。春分・秋分は国立天文台の暦要項による。 */
 var HOLIDAYS_JP = [
   ['2026-01-01', '元日'], ['2026-01-12', '成人の日'], ['2026-02-11', '建国記念の日'],
@@ -104,8 +110,9 @@ function migrateV2() {
     var cols = keysOf('Rules');
     var changed = 0;
     readTable('Rules').forEach(function (r) {
+      // 古い説明文のままの行だけ直す（店長が自分で書き換えた説明は触らない）
       var want = RULE_LABELS_V2[r.rule_key];
-      if (want && r.label !== want) {
+      if (want && RULE_LABELS_V1[r.rule_key] === r.label) {
         rulesSh.getRange(r._row, cols.indexOf('label') + 1).setValue(want);
         changed++;
       }
@@ -113,8 +120,24 @@ function migrateV2() {
     if (changed) { invalidateTable('Rules'); done.push('ルールの説明文を新しくしました（' + changed + '件）'); }
   }
 
-  appendRowTo('Log', { at: new Date(), type: 'setup', staff_id: '',
-    detail: 'シートを更新：' + (done.length ? done.join(' / ') : '変更なし') });
+  // 6. 月はあるのに週が足りない（はじめのサンプルは1週だけだった）。対象週のプルダウンで全部の週を選べるようにする
+  var periods = readTable('Periods');
+  var stt = readSettings();
+  var addWeeks = [];
+  periods.filter(function (r) { return r.kind === 'month'; }).forEach(function (r) {
+    addWeeks = addWeeks.concat(missingWeekRows_(String(r.period_id), periods.concat(addWeeks.map(function (w) {
+      return { period_id: w[0] };
+    })), stt));
+  });
+  if (addWeeks.length) {
+    writePeriodsWith_(periods, addWeeks);
+    done.push('期間：足りない週を作りました（' + addWeeks.map(function (w) { return w[0]; }).join('、') + '）');
+  }
+
+  // 開くたびに呼ばれるので、直したときだけログに残す
+  if (done.length) {
+    appendRowTo('Log', { at: new Date(), type: 'setup', staff_id: '', detail: 'シートを更新：' + done.join(' / ') });
+  }
   return done;
 }
 

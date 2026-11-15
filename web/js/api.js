@@ -38,6 +38,9 @@ async function mockCall(action, payload) {
 
   if (action === 'me') {
     if (mockData.me.error) throw new ApiError(mockData.me.error, mockData.me.message);
+    // 週を選び直したとき：見本に別の週があればそれを返す
+    const other = payload && payload.weekId && mockData.meWeeks && mockData.meWeeks[payload.weekId];
+    if (other) return JSON.parse(JSON.stringify({ ...mockData.me, week: other }));
     return JSON.parse(JSON.stringify(mockData.me));
   }
   if (action === 'me.submit') {

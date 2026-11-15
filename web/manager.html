@@ -4,14 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>シフト作成｜店長</title>
-<link rel="stylesheet" href="css/app.css?v=8">
+<link rel="stylesheet" href="css/app.css?v=9">
 </head>
 <body>
 <div class="wrap">
 
   <div class="head">
     <h1 id="title">シフト作成</h1>
-    <p class="lead" id="sub">読み込んでいます…</p>
   </div>
 
   <div class="devbar hidden" id="devbar">
@@ -19,11 +18,15 @@
     <code>gas/Auth.js</code> の <code>DEV_MODE</code> を <code>false</code> にしてください。
   </div>
 
+  <!-- 対象週とタブは、下にスクロールしても画面の上に出たままにする -->
+  <div class="stick">
+  <p class="lead" id="sub">読み込んでいます…</p>
   <div class="tabs hidden" id="tabs">
     <button class="tab" data-tab="sub" aria-selected="true">提出状況<small>誰が出したか</small></button>
     <button class="tab" data-tab="sheet" aria-selected="false">シフト表<small>紙の形</small></button>
     <button class="tab" data-tab="auto" aria-selected="false">自動作成<small>叩き台</small></button>
     <button class="tab" data-tab="skill" aria-selected="false">スキル<small>ルールと人</small></button>
+  </div>
   </div>
 
   <div id="body">
@@ -76,6 +79,6 @@
 })();
 </script>
 
-<script type="module" src="js/manager.js?v=15"></script>
+<script type="module" src="js/manager.js?v=16"></script>
 </body>
 </html>

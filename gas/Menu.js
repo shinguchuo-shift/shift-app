@@ -22,6 +22,23 @@ function onOpen() {
     .addSeparator()
     .addItem('アプリの更新に合わせてシートを直す', 'menuMigrate')
     .addToUi();
+
+  // アプリが新しくなっていたら、開いたときに自動でシートを直す（メニューを押し忘れても困らないように）。
+  // 済んでいれば何もしない。失敗してもメニューは出したままにし、ログに残す（メニューから手で直せる）
+  var lock = LockService.getDocumentLock();
+  if (!lock.tryLock(5000)) return;                 // 2人が同時に開いたときは片方だけ
+  try {
+    var done = migrateV2();
+    if (done.length) {
+      SpreadsheetApp.getActive().toast(done.join('\n'), 'シートを新しい形にしました', 15);
+    }
+  } catch (err) {
+    console.error('自動の移行に失敗: ' + (err && err.stack || err));
+    SpreadsheetApp.getActive().toast('メニュー「シフトアプリ」→「アプリの更新に合わせてシートを直す」を押してください',
+      'シートを直せませんでした', 15);
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 /** 招待コード。紛らわしい文字（0/O、1/I/L）を除いた8桁。毎回ランダム。 */
