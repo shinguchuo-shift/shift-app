@@ -32,6 +32,7 @@ let tab = 'sub';
 init();
 
 async function init() {
+  $('state').textContent = 'LINEにログインしています…';
   try {
     await liffAuth.start('manager');
   } catch (err) {

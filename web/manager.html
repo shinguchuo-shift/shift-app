@@ -71,7 +71,9 @@
   // 25秒たっても画面が変わらないとき（GAS は初回5〜9秒かかることがある）
   setTimeout(function () {
     if (document.getElementById('state')) {
-      fail('読み込みが終わりません',
+      // どこで止まったかを残す（LINEのログインか、スプレッドシートの読み込みか）
+      var was = (document.getElementById('state').textContent || '').replace(/\s+/g, ' ').trim();
+      fail('読み込みが終わりません' + (was ? '<br><small>止まった所：' + was + '</small>' : ''),
         'ブラウザの開発者ツール（⌥⌘I）の Console に出ているエラーを見てください。<br>' +
         'よくある原因：GAS の URL が違う／デプロイのアクセス設定が「全員」になっていない／通信できていない');
     }
