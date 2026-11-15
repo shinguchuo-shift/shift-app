@@ -70,7 +70,8 @@
 
   // 25秒たっても画面が変わらないとき（GAS は初回5〜9秒かかることがある）
   setTimeout(function () {
-    if (document.getElementById('state')) {
+    var st0 = document.getElementById('state');
+    if (st0 && !/\berr\b/.test(st0.className)) {        // エラーを出し済みなら上書きしない
       // どこで止まったかを残す（LINEのログインか、スプレッドシートの読み込みか）
       var was = (document.getElementById('state').textContent || '').replace(/\s+/g, ' ').trim();
       fail('読み込みが終わりません' + (was ? '<br><small>止まった所：' + was + '</small>' : ''),

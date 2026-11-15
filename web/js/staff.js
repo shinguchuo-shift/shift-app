@@ -70,7 +70,10 @@ async function load() {
     // まだLINEアカウントとスタッフが結びついていない人は、招待コードの画面へ
     if (err.code === 'needsLink') return renderLink();
     $('body').innerHTML = `<div class="state err"><b>読み込めませんでした</b><br>
-      <span class="small">${esc(err.message)}</span></div>`;
+      <span class="small">${esc(err.message)}</span>${
+        err.code === 'invalidToken' && liffAuth.isReady()
+          ? '<div class="acts"><button class="btn" id="relogin">ログインし直す</button></div>' : ''}</div>`;
+    if ($('relogin')) $('relogin').onclick = () => liffAuth.relogin();
   } finally {
     clearInterval(tick);
   }

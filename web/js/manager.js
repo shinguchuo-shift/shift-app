@@ -78,7 +78,9 @@ async function init() {
       forbidden: ['権限がありません',
         'この画面は店長だけが使えます。スタッフ一覧の「権限」が「店長」になっているか確認してください。'],
       noToken: ['LINEからログインしてください',
-        'LINEのトークに貼ったリンクから開いてください。']
+        'LINEのトークに貼ったリンクから開いてください。'],
+      invalidToken: ['ログインし直してください',
+        'LINEのログインの期限が切れています。下のボタンでログインし直してください。']
     }[err.code];
 
     el.innerHTML = guide
@@ -86,6 +88,11 @@ async function init() {
       : `<b>読み込めませんでした</b><br><span style="color:var(--sub)">${esc(err.message)}</span>`
         + `<div class="acts" style="justify-content:center;margin-top:14px">`
         + `<button class="btn ghost" id="retry">もう一度試す</button></div>`;
+    if (err.code === 'invalidToken' && liffAuth.isReady()) {
+      el.innerHTML += `<div class="acts" style="justify-content:center;margin-top:14px">`
+        + `<button class="btn" id="relogin">ログインし直す</button></div>`;
+      $('relogin').onclick = () => liffAuth.relogin();
+    }
     if ($('retry')) $('retry').onclick = () => location.reload();
   } finally {
     clearInterval(tick);

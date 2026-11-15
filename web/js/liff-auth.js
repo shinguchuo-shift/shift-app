@@ -73,10 +73,33 @@ export async function start(kind) {
     await new Promise(() => {});                        // 画面が遷移するので以降は実行されない
   }
 
+  // パソコンなど外部ブラウザでは、前にログインしたときの IDトークンが残っていて、期限が切れていることがある
+  // （LINEアプリの中では開くたびに新しくなる）。期限切れ・切れかけなら、ログインし直して新しくする
+  if (!liff.isInClient()) {
+    const dec = liff.getDecodedIDToken();
+    const expired = !dec || !dec.exp || dec.exp * 1000 < Date.now() + 5 * 60 * 1000;
+    // パソコンの時計がずれていると、ログインし直しても「期限切れ」に見えて繰り返してしまう。
+    // 2分以内にやり直したばかりなら、もうやり直さない（サーバーの判定に任せる）
+    let last = 0;
+    try { last = Number(sessionStorage.getItem('liffRelogin') || 0); } catch (e) { /* 使えない環境 */ }
+    if (expired && Date.now() - last > 2 * 60 * 1000) {
+      try { sessionStorage.setItem('liffRelogin', String(Date.now())); } catch (e) { /* 使えない環境 */ }
+      relogin();
+      await new Promise(() => {});                      // 画面が遷移するので以降は実行されない
+    }
+  }
+
   idToken = liff.getIDToken();
   context = liff.getContext();
   ready = true;
   return { enabled: true, context };
+}
+
+/** ログインし直す（古いログイン情報を捨てて、LINEのログインからやり直す）。 */
+export function relogin() {
+  if (!window.liff) return location.reload();
+  try { liff.logout(); } catch (e) { /* もうログアウトしていてもよい */ }
+  liff.login({ redirectUri: location.href });
 }
 
 /** API に添える IDトークン。LIFF を使っていなければ null。 */
