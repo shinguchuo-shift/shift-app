@@ -57,8 +57,9 @@ var COLUMNS = {
     ['weekly_cap_min',    '週の上限（時間）'],
     ['leader',            '責任者'],
     ['closer',            '締め作業'],
-    ['hall_lv',           'ホールのスキル'],
-    ['kitchen_lv',        'キッチンのスキル'],
+    ['duty',              '担当業務'],
+    ['staff_level',       'スタッフレベル'],
+    ['day_hours',         '1日の勤務時間'],
     ['ng_staff_ids',      '組ませない相手'],
     ['color_hue',         '色'],
     ['memo',              'メモ']
@@ -184,18 +185,26 @@ var STAFF_TYPES = ['社員', '主婦', '大学生', '高校生'];
 /** 22時を超えて入れられない区分（分で持つ） */
 var TYPE_END_LIMIT = { '高校生': 22 * 60 };
 
+/** 担当業務。研修中はどちらにも入るが、1人にしない。 */
+var DUTIES = [
+  ['hall',    'ホール'],
+  ['kitchen', 'キッチン'],
+  ['both',    '両方'],
+  ['trainee', '研修中']
+];
+
 /**
- * スキルの段階。ホール・キッチンそれぞれに持つ。
- *  0 入らない／1 一人でできない／2 一人でできる／3 人に教えられる
- * レベル1の人は、同じ側にレベル2以上がいる時間にしか入れない（自動作成で止める）。
+ * スタッフレベル。1 半人前／2 一人前／3 ベテラン。
+ * 半人前（と研修中）は、同じ側に一人前以上がいる時間にしか入れない。ベテランは半人前・研修中と同じ時間に寄せる。
+ * 1日の勤務時間の既定値もレベルで決まる（設定シートの day_min_h_1 など）。
  */
-var SKILL_LEVELS = { 0: '入らない', 1: '1 一人でできない', 2: '2 一人でできる', 3: '3 教えられる' };
+var STAFF_LEVELS = { 1: '1 半人前', 2: '2 一人前', 3: '3 ベテラン' };
 
 var TEXT_COLUMNS = {
   period_id: true, parent_id: true,
   date: true, start_date: true, end_date: true, deadline_at: true,
   staff_id: true, pos_key: true, rule_key: true,
-  invite_code: true, line_user_id: true, ng_staff_ids: true, type: true, hours: true,
+  invite_code: true, line_user_id: true, ng_staff_ids: true, duty: true, type: true, hours: true, day_hours: true,
   start_min: true, end_min: true, dow: true
 };
 
@@ -211,8 +220,8 @@ var VALUE_MAPS = {
   dow: { 0: '月', 1: '火', 2: '水', 3: '木', 4: '金', 5: '土', 6: '日' },
   rule_key: { leader: '責任者', peak3: 'ピーク帯', close: '締め', ng: '組み合わせNG', rookie: '研修中' },
   role:     { staff: 'スタッフ', manager: '店長' },
-  hall_lv:    SKILL_LEVELS,
-  kitchen_lv: SKILL_LEVELS,
+  duty:     { hall: 'ホール', kitchen: 'キッチン', both: '両方', trainee: '研修中' },
+  staff_level: STAFF_LEVELS,
   side:     { hall: 'ホール', kitchen: 'キッチン' },
   kind:     { month: '月の暫定', week: '週の確認' },
   status:   { draft: '準備中', open: '受付中', closed: '締切後', published: '確定済み' },
@@ -304,8 +313,8 @@ function dropdownsOf(sheetKey) {
     Staff: {
       type: STAFF_TYPES,                 // 社員 / 主婦 / 大学生 / 高校生
       role: jp('role'),                  // スタッフ / 店長
-      hall_lv: jp('hall_lv'),            // 入らない / 1 一人でできない / 2 一人でできる / 3 教えられる
-      kitchen_lv: jp('kitchen_lv')
+      duty: jp('duty'),                  // ホール / キッチン / 両方 / 研修中
+      staff_level: jp('staff_level')     // 1 半人前 / 2 一人前 / 3 ベテラン
     },
     Periods: {
       kind: jp('kind'),                  // 月の暫定 / 週の確認

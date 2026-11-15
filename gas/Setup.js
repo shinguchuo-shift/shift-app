@@ -43,6 +43,12 @@ function setupSampleData() {
     ['weekend_peak_boost', 1, '土日ピークの加算人数'],
     ['min_shift_min', 180, '1回の勤務の最短（3時間）'],
     ['max_shift_min', 480, '1回の勤務の最長（8時間）'],
+    ['day_min_h_1', 3, '半人前の1日の勤務時間の最短（時間）'],
+    ['day_max_h_1', 8, '半人前の1日の勤務時間の最長（時間）。最短と同じにすると固定'],
+    ['day_min_h_2', 3, '一人前の1日の勤務時間の最短（時間）'],
+    ['day_max_h_2', 8, '一人前の1日の勤務時間の最長（時間）。最短と同じにすると固定'],
+    ['day_min_h_3', 3, 'ベテランの1日の勤務時間の最短（時間）'],
+    ['day_max_h_3', 8, 'ベテランの1日の勤務時間の最長（時間）。最短と同じにすると固定'],
     ['footer_note', '※シフト希望は毎週木曜日〆切です。原則雇用時通りの提出を心掛けてください。', 'シフト表の下に出す注意書き'],
     ['liff_url_staff', 'https://liff.line.me/2012473249-yrLHA1fl', 'スタッフ用のリンク（配布用の紙に載せる）'],
     ['liff_url_manager', 'https://liff.line.me/2012473249-4aDhOvyt', '店長用のリンク（グループには貼らない）']
@@ -55,7 +61,7 @@ function setupSampleData() {
       i === 0 ? 'manager' : 'staff',       // 1人目を店長役にしておく
       true, '',                             // active / line_user_id
       newInviteCode(), '',               // invite_code / invite_expires_at
-      s.capMin, s.leader, s.closer, s.lv.hall, s.lv.kitchen,
+      s.capMin, s.leader, s.closer, s.duty, s.level, '',
       (s.ng || []).join(','), s.colorHue, ''
     ];
   }));
@@ -144,6 +150,7 @@ function setupSampleData() {
   writeTable('Holidays', HOLIDAYS_JP);
   writeTable('BusyPeriods', []);
   textWholeColumn_('BusyPeriods', 'hours');
+  textWholeColumn_('Staff', 'day_hours');
 
   writeTable('Log', [[now, 'setup', '', 'サンプルデータを投入']]);
 }

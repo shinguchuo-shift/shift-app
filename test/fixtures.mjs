@@ -33,8 +33,8 @@ export const POSITIONS = [
 
 // サンプルのスタッフ。名前はすべて架空。
 // [名前, 担当, 区分, 週の上限(h)]
-// 担当：hall=ホール / kitchen=キッチン / both=両方 / trainee=研修中（どちらもレベル1）
-// スキルの段階は skillOf() で決める（社員はレベル3＝教えられる、ほかはレベル2）
+// 担当業務：hall=ホール / kitchen=キッチン / both=両方 / trainee=研修中
+// スタッフレベルは levelOf() で決める（社員=3 ベテラン、研修中=1 半人前、ほかは2 一人前。井上だけ半人前）
 const RAW = [
   ['佐藤',   'hall',    '主婦',   25], ['鈴木', 'kitchen', '社員',   40],
   ['高橋',   'both',    '大学生', 20], ['田中', 'hall',    '高校生', 15],
@@ -48,14 +48,10 @@ const RAW = [
   ['斎藤',   'both',    '大学生', 20], ['清水', 'hall',    '社員',   40]
 ];
 
-/** 担当と区分から、ホール・キッチンのスキル段階（0〜3）を作る。 */
-function skillOf(duty, type) {
-  const top = type === '社員' ? 3 : 2;
-  if (duty === 'trainee') return { hall: 1, kitchen: 1 };
-  return {
-    hall: duty === 'hall' || duty === 'both' ? top : 0,
-    kitchen: duty === 'kitchen' || duty === 'both' ? top : 0
-  };
+/** 担当業務と区分から、スタッフレベル（1 半人前／2 一人前／3 ベテラン）を決める。 */
+function levelOf(name, duty, type) {
+  if (duty === 'trainee' || name === '井上') return 1;
+  return type === '社員' ? 3 : 2;
 }
 
 /** 区分ごとの終了上限。高校生は労働基準法で22時以降は働けない。 */
@@ -123,7 +119,8 @@ function sampleSkills() {
   RAW.forEach((s, id) => {
     const [, duty, type, cap] = s;
     sk[id] = {
-      lv: skillOf(duty, type),
+      duty,
+      level: levelOf(s[0], duty, type),
       // 責任者は社員、締めは社員と大学生（高校生は22時までなので締めに入れない）
       leader: type === '社員',
       closer: (type === '社員' || type === '大学生') && duty !== 'trainee',
@@ -150,7 +147,8 @@ export function buildStaff() {
     capMin: sk[i].capMin,
     leader: sk[i].leader,
     closer: sk[i].closer,
-    lv: sk[i].lv,
+    duty: sk[i].duty,
+    level: sk[i].level,
     ng: sk[i].ng,
     colorHue: (i * 137) % 360     // デモの hue=sid*137%360 と同じ並び
   }));

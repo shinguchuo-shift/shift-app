@@ -15,10 +15,10 @@ const WD = ['月', '火', '水', '木', '金', '土', '日'];
 const STORE = 'サンプル店';
 const LABELS = {
   leader: '営業中は毎時間、時間帯責任者を1人以上',
-  peak3: 'ピーク帯はホール・キッチンそれぞれレベル2以上の人を1人以上',
+  peak3: 'ピーク帯はホール・キッチンそれぞれ一人前以上の人を1人以上',
   close: '閉店時は締め作業ができる人を1人以上',
   ng: 'NG組み合わせは同じ時間に入れない',
-  rookie: 'レベル1の人は、同じ側にレベル2以上がいる時間にだけ入れる'
+  rookie: '研修中・半人前の人は、同じ側に一人前以上がいる時間にだけ入れる'
 };
 
 const pad = n => String(n).padStart(2, '0');
@@ -58,6 +58,7 @@ const mgr = {
     axisStart: 480, axisEnd: 1440, lanes: 12, minLen: 180, maxLen: 480,
     weekendPeakBoost: 1, peaks: F.PEAKS,
     footerNote: '※シフト希望は毎週木曜日〆切です。原則雇用時通りの提出を心掛けてください。',
+    levelHours: { 1: { min: 180, max: 480 }, 2: { min: 180, max: 480 }, 3: { min: 180, max: 480 } },
     typeEndLimit: F.TYPE_END_LIMIT
   },
   period: { id: '2026-11-02', startDate: '2026-11-02', endDate: '2026-11-08', status: 'closed', revision: 1, monthId: '2026-11' },

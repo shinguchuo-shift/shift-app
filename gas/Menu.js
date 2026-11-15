@@ -65,7 +65,7 @@ function menuAddStaff() {
     staff_id: id, name: name, type: '大学生', role: 'staff',
     active: true, line_user_id: '', invite_code: code, invite_expires_at: '',
     weekly_cap_min: 20 * 60, leader: false, closer: false,
-    hall_lv: 1, kitchen_lv: 1,                   // 入ったばかりはどちらも「1 一人でできない」
+    duty: 'trainee', staff_level: 1, day_hours: '',   // 入ったばかりは「研修中」「1 半人前」
     ng_staff_ids: '', color_hue: hue, memo: ''
   });
 
@@ -81,7 +81,7 @@ function menuAddStaff() {
   ui.alert('追加しました',
     name + 'さんを追加しました（' + id + '）。\n\n'
     + '招待コード： ' + code + '\n\n'
-    + 'この行の「区分」「ホール・キッチンのスキル」「週の上限」を直してから、\n'
+    + 'この行の「区分」「担当業務」「スタッフレベル」「週の上限」を直してから、\n'
     + '本人に招待コードを伝えてください。',
     ui.ButtonSet.OK);
 }

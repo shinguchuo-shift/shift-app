@@ -15,6 +15,7 @@ function mgrLoad(req, p) {
   requireManager(req);
 
   var st = readSettings();
+  var levelHours = levelHoursOf_(st);
 
   // 週の一覧（新しい順）。画面の切り替えに使う
   var allWeeks = readTable('Periods', function (r) { return (r.kind || 'week') === 'week'; })
@@ -40,11 +41,13 @@ function mgrLoad(req, p) {
       id: s.staff_id, name: s.name, type: s.type, role: s.role,
       capMin: Number(s.weekly_cap_min) || 0,
       leader: s.leader === true, closer: s.closer === true,
-      // スキルの段階（0〜3）。ホール・キッチン別。
-      // シートを直す前（「担当業務」の列のまま）でも動くよう、そのときは担当業務から読み替える
-      lv: (s.hall_lv === undefined && s['担当業務'] !== undefined)
-        ? levelsFromDuty_(s['担当業務'])
-        : { hall: Number(s.hall_lv) || 0, kitchen: Number(s.kitchen_lv) || 0 },
+      duty: s.duty || 'both',
+      // スタッフレベル（1 半人前／2 一人前／3 ベテラン）。空なら一人前
+      level: Number(s.staff_level) || 2,
+      // 1日の勤務時間（分）。スタッフの欄が空ならレベルの既定
+      dayMin: dayLenOfStaff_(s, levelHours).min,
+      dayMax: dayLenOfStaff_(s, levelHours).max,
+      dayHours: String(s.day_hours || ''),
       ng: String(s.ng_staff_ids || '').split(',').map(function (x) { return x.trim(); }).filter(Boolean),
       colorHue: Number(s.color_hue) || 0,
       memo: s.memo || ''
@@ -158,7 +161,9 @@ function mgrLoad(req, p) {
       // 区分ごとの終了上限（高校生は22時）。自動作成とチェックの両方で使う
       typeEndLimit: TYPE_END_LIMIT,
       staffTypes: STAFF_TYPES,
-      skillLevels: SKILL_LEVELS
+      duties: DUTIES,
+      staffLevels: STAFF_LEVELS,
+      levelHours: levelHours
     },
     period: {
       id: want, startDate: dateKey_(period.start_date), endDate: dateKey_(period.end_date),
@@ -380,4 +385,75 @@ function missingWeekRows_(monthId, existing, st) {
     d.setDate(d.getDate() + 7);
   }
   return rows;
+}
+
+/**
+ * レベルごとの1日の勤務時間（分）。設定シートの day_min_h_1 / day_max_h_1 … から読む。
+ * 無ければ全体の min_shift_min / max_shift_min（3〜8時間）。
+ */
+function levelHoursOf_(st) {
+  var defMin = Number(st.min_shift_min) || 180, defMax = Number(st.max_shift_min) || 480;
+  var out = {};
+  [1, 2, 3].forEach(function (lv) {
+    var mn = Number(st['day_min_h_' + lv]) * 60 || defMin;
+    var mx = Number(st['day_max_h_' + lv]) * 60 || defMax;
+    out[lv] = { min: mn, max: Math.max(mn, mx) };
+  });
+  return out;
+}
+
+/**
+ * スタッフの1日の勤務時間（分）。「1日の勤務時間」の欄に「5」なら5時間ちょうど、「4-6」なら4〜6時間。
+ * 空や読めない値ならレベルの既定。
+ */
+function dayLenOfStaff_(s, levelHours) {
+  var def = levelHours[Number(s.staff_level) || 2] || levelHours[2];
+  var t = String(s.day_hours === undefined ? '' : s.day_hours)
+    .replace(/[０-９．]/g, function (c) { return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); })
+    .replace(/[〜～ー－−—]/g, '-').replace(/時間|h/gi, '').trim();
+  var m = t.match(/^(\d+(?:\.\d+)?)(?:\s*-\s*(\d+(?:\.\d+)?))?$/);
+  if (!m) return def;
+  var a = Number(m[1]), b = m[2] ? Number(m[2]) : a;
+  if (!(a > 0 && a <= 24 && b >= a && b <= 24)) return def;
+  return { min: Math.round(a * 60), max: Math.round(b * 60) };
+}
+
+/**
+ * 必要人数を保存する。シートは書き直さず、今ある行の数字だけを直す（無い行は下に足す）。
+ * @param p { demand: { weekday|weekend|holiday: { hall: [..], kitchen: [..] } } }  配列は営業開始からの1時間ごと
+ */
+function mgrSaveDemand(req, p) {
+  requireManager(req);
+  var d = p.demand || {};
+  var st = readSettings();
+  var grid = Number(st.grid_min) || 60;
+  var openMin = Number(st.open_min) || 480;
+
+  var sh = sheetOf('Demand');
+  var header = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(function (h) { return String(h).trim(); });
+  var colOf = function (k) { return header.indexOf(headerOf('Demand')[keysOf('Demand').indexOf(k)]) + 1; };
+  var cHall = colOf('hall'), cKitchen = colOf('kitchen');
+  if (!cHall || !cKitchen) throw apiError('badSheet', '必要人数シートの見出しが見つかりません');
+
+  var rows = readTable('Demand');
+  var add = [], changed = 0;
+  ['weekday', 'weekend', 'holiday'].forEach(function (dt) {
+    var t = d[dt];
+    if (!t) return;
+    (t.hall || []).forEach(function (_, i) {
+      var min = openMin + i * grid;
+      var h = Math.max(0, Math.round(Number(t.hall[i]) || 0));
+      var k = Math.max(0, Math.round(Number((t.kitchen || [])[i]) || 0));
+      var row = rows.filter(function (r) { return r.day_type === dt && Number(r.start_min) === min; })[0];
+      if (row) {
+        if (Number(row.hall) !== h) { sh.getRange(row._row, cHall).setValue(h); changed++; }
+        if (Number(row.kitchen) !== k) { sh.getRange(row._row, cKitchen).setValue(k); changed++; }
+      } else {
+        add.push({ day_type: dt, start_min: min, hall: h, kitchen: k });
+      }
+    });
+  });
+  appendRowsByHeader_('Demand', add);
+  invalidateTable('Demand');
+  return { changed: changed, added: add.length };
 }

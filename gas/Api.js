@@ -65,6 +65,7 @@ function route(action, req) {
     case 'mgr.saveShifts':  return mgrSaveShifts(req, p);
     case 'mgr.saveRules':   return mgrSaveRules(req, p);
     case 'mgr.saveNote':    return mgrSaveNote(req, p);
+    case 'mgr.saveDemand':  return mgrSaveDemand(req, p);
     case 'mgr.openPeriod':  return mgrOpenPeriod(req, p);
     case 'mgr.setStatus':   return mgrSetStatus(req, p);
     case 'mgr.publish':     return mgrPublish(req, p);

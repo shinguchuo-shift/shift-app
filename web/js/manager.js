@@ -6,7 +6,7 @@
 
 import { call, callRetry, ApiError, isMock } from './api.js?v=5';
 import * as liffAuth from './liff-auth.js?v=1';
-import { generate, checksAll, sidesOf, isTrainee, endLimitOf, levelOf, needAt, busyOn, LEVEL_LABEL } from './scheduler.js?v=4';
+import { generate, checksAll, sidesOf, isTrainee, endLimitOf, levelOf, needAt, busyOn, LEVEL_LABEL, dayLenOf, needsHelp } from './scheduler.js?v=5';
 
 const $ = id => document.getElementById(id);
 
@@ -193,12 +193,21 @@ function isOutOfRequest(s) {
   return !r || s.start < r.start || s.end > r.end;
 }
 
-/** スキルの短い表示。「ホール3・キッチン1」のように、入らない側は出さない。 */
-const skillText = s => sidesOf(s).map(x => `${SIDE[x]}${levelOf(s, x)}`).join('・') || '入らない';
+/** 担当業務の表示名。 */
+const DUTY = { hall: 'ホール', kitchen: 'キッチン', both: '両方', trainee: '研修中' };
 
-/** スキルの札（段階ごとに色を変える）。 */
-const skillTags = s => sidesOf(s).map(x =>
-  `<span class="lv l${levelOf(s, x)}" title="${SIDE[x]}：${LEVEL_LABEL[levelOf(s, x)]}">${SIDE[x]}${levelOf(s, x)}</span>`).join('');
+/** 1日の勤務時間の短い表示（「4時間」「3〜8時間」）。 */
+const dayLenText = s => {
+  const d = dayLenOf(s, schedulerInput());
+  return d.min === d.max ? `${d.min / 60}時間` : `${d.min / 60}〜${d.max / 60}時間`;
+};
+
+/** スキルの短い表示。「両方・一人前」のように。 */
+const skillText = s => `${DUTY[s.duty] || s.duty}・${LEVEL_LABEL[levelOf(s)]}`;
+
+/** スキルの札（担当業務＋レベル。レベルで色を変える）。 */
+const skillTags = s => `<span class="lv${isTrainee(s) ? ' l1' : ''}">${DUTY[s.duty] || s.duty}</span>`
+  + `<span class="lv l${levelOf(s)}">${LEVEL_LABEL[levelOf(s)]}</span>`;
 
 /** 土・日・祝日の色分け。祝日は日曜と同じ赤。 */
 const dayClass = d => d.dow === 6 || d.dayType === 'holiday' ? 'sun' : d.dow === 5 ? 'sat' : '';
@@ -464,7 +473,7 @@ function openBarPanel(i) {
   const can = sidesOf(who);
   const sideBtns = ['hall', 'kitchen'].map(x =>
     `<button class="btn sm ${s.side === x ? '' : 'ghost'}" data-side="${x}"
-      ${can.includes(x) ? '' : 'disabled title="スキルが「入らない」になっています"'}>${SIDE[x]}${levelOf(who, x) ? ' ' + levelOf(who, x) : ''}</button>`).join('');
+      ${can.includes(x) ? '' : 'disabled title="担当業務が違います"'}>${SIDE[x]}</button>`).join('');
 
   openPanel(`${who.name}　${day.label}（${day.wd}）`, `
     <p class="lead">${req ? `希望：${hm(req.start)}〜${hm(req.end)}` : '<b class="warn">この日は希望を出していません</b>'}</p>
@@ -495,7 +504,8 @@ function openBarPanel(i) {
     const msgs = [];
     if (b <= a) msgs.push('終了は開始より後にしてください');
     else {
-      if (b - a < D.settings.minLen) msgs.push(`${D.settings.minLen / 60}時間より短い勤務です`);
+      const dl = dayLenOf(who, schedulerInput());
+      if (b - a < dl.min || b - a > dl.max) msgs.push(`${who.name}さんの1日の勤務時間は${dayLenText(who)}です`);
       if (req && (a < req.start || b > req.end)) msgs.push('希望の外に入っています');
       if (!req) msgs.push('希望を出していない日です');
     }
@@ -535,7 +545,7 @@ function openAddPanel(date, min) {
     .map(s => ({ s, rank: rank(s) }))
     .filter(x => showAll || x.rank === 0)
     .sort((a, b) => a.rank - b.rank
-      || (isTrainee(a.s) ? 1 : 0) - (isTrainee(b.s) ? 1 : 0)
+      || (needsHelp(a.s) ? 1 : 0) - (needsHelp(b.s) ? 1 : 0)
       || (b.s.leader ? 1 : 0) - (a.s.leader ? 1 : 0));
 
   const used = {};
@@ -544,7 +554,7 @@ function openAddPanel(date, min) {
   const rows = list.map(({ s, rank }) => {
     const r = requestOf(s.id, date);
     const over = (used[s.id] || 0) >= s.capMin;
-    const lv = skillTags(s) + `<span class="lv zero">${esc(s.type)}</span>`;
+    const lv = skillTags(s) + `<span class="lv zero">${dayLenText(s)}</span>`;
     return `<button class="cand${rank ? ' off' : ''}" data-id="${s.id}">
       <span class="c1">${s.leader ? '★' : ''}${esc(s.name)}<small>${esc(s.type)}</small></span>
       <span class="c2">${r ? `希望 ${hm(r.start)}〜${hm(r.end)}` : '<b class="warn">希望なし</b>'}
@@ -554,7 +564,7 @@ function openAddPanel(date, min) {
   }).join('');
 
   openPanel(`${day.label}（${day.wd}）${hm(min)} に入れる`, `
-    <p class="lead">押すと ${hm(min)} から ${D.settings.minLen / 60}時間で入ります。時間はあとで直せます。</p>
+    <p class="lead">押すと ${hm(min)} から、その人の1日の勤務時間（短いほう）で入ります。時間はあとで直せます。</p>
     <label class="switch"><input type="checkbox" id="pAll" ${showAll ? 'checked' : ''}>
       希望を出していない人も出す</label>
     <div class="cands">${rows || '<p class="state">この時間に出られる人がいません。上のチェックを入れると全員から選べます。</p>'}</div>`);
@@ -564,18 +574,18 @@ function openAddPanel(date, min) {
   document.querySelectorAll('.cand').forEach(b => b.onclick = () => {
     const s = staffById(b.dataset.id);
     const r = requestOf(s.id, date);
-    let end = min + D.settings.minLen;
+    let end = min + dayLenOf(s, schedulerInput()).min;      // その人の1日の勤務時間（最短）
     if (r && r.end < end) end = r.end;                       // 希望の終わりを越えない
     if (end > D.settings.closeMin) end = D.settings.closeMin; // 閉店を越えない
     if (end <= min) end = Math.min(min + D.settings.grid, D.settings.closeMin);
 
-    // 入れる側：その時間に足りていない側を優先。同じならスキルの高い側
+    // 入れる側：その時間に足りていない側を優先
     const gap = side => {
       const si = D.slots.indexOf(min);
       const c = shifts.filter(x => x.date === date && x.side === side && x.start <= min && min < x.end).length;
       return si < 0 ? 0 : need(day, side, si) - c;
     };
-    const side = sidesOf(s).slice().sort((a, b) => gap(b) - gap(a) || levelOf(s, b) - levelOf(s, a))[0];
+    const side = sidesOf(s).slice().sort((a, b) => gap(b) - gap(a))[0];
 
     shifts.push({
       date, staffId: s.id, side,
@@ -713,12 +723,21 @@ function checkList(checks) {
 
 function renderAuto() {
   const hol = D.demand.holiday || D.demand.weekend;
+  const tables = { weekday: D.demand.weekday, weekend: D.demand.weekend, holiday: hol };
+  const cell = (dt, side, i) => `<td><input class="dm" type="number" min="0" max="20" inputmode="numeric"
+      data-dt="${dt}" data-side="${side}" data-i="${i}" value="${Number((tables[dt][side] || [])[i]) || 0}"></td>`;
   const rows = D.slots.map((min, i) => `<tr>
       <td>${hm(min)}</td>
-      <td>${D.demand.weekday.hall[i]}</td><td>${D.demand.weekday.kitchen[i]}</td>
-      <td>${D.demand.weekend.hall[i]}</td><td>${D.demand.weekend.kitchen[i]}</td>
-      <td>${hol.hall[i]}</td><td>${hol.kitchen[i]}</td>
+      ${cell('weekday', 'hall', i)}${cell('weekday', 'kitchen', i)}
+      ${cell('weekend', 'hall', i)}${cell('weekend', 'kitchen', i)}
+      ${cell('holiday', 'hall', i)}${cell('holiday', 'kitchen', i)}
     </tr>`).join('');
+  const lh = D.settings.levelHours || {};
+  const lhText = [1, 2, 3].map(lv => {
+    const d = lh[lv];
+    if (!d) return '';
+    return `${LEVEL_LABEL[lv]} ${d.min === d.max ? d.min / 60 : `${d.min / 60}〜${d.max / 60}`}時間`;
+  }).filter(Boolean).join('／');
 
   // この週の祝日と繁忙期
   const hols = D.days.filter(d => d.holiday).map(d => `${d.label}（${d.wd}）${esc(d.holiday)}`);
@@ -735,17 +754,22 @@ function renderAuto() {
 
     <div class="card">
       <h2>必要人数</h2>
-      <p class="lead">時間帯ごとの人数。土日・祝日のピーク帯は自動で +${D.settings.weekendPeakBoost}人します。
-        変えるときはスプレッドシートの「必要人数」シートで。</p>
+      <p class="lead">時間帯ごとの人数。数字を直して「必要人数を保存」を押すと、スプレッドシートにも入ります。
+        土日・祝日のピーク帯は自動で +${D.settings.weekendPeakBoost}人します。</p>
       <div class="sheet"><table class="wk">
         <tr><th class="hr">時刻</th><th class="hr">平日ホール</th><th class="hr">平日キッチン</th>
             <th class="hr">土日ホール</th><th class="hr">土日キッチン</th>
             <th class="hr">祝日ホール</th><th class="hr">祝日キッチン</th></tr>
         ${rows}
       </table></div>
+      <div class="acts" style="margin-top:10px">
+        <button class="btn" id="saveDemand" disabled>必要人数を保存</button>
+        <span class="lead" id="demandMsg"></span>
+      </div>
       <p class="lead" style="margin-top:9px">この週の祝日：${hols.length ? hols.join('、') : 'なし'}
         <small>（祝日は「祝日」シートで足したり消したりできます）</small></p>
-      <p class="lead" style="margin-top:9px">1回の勤務：${D.settings.minLen / 60}〜${D.settings.maxLen / 60}時間</p>
+      <p class="lead" style="margin-top:9px">1日の勤務時間：${lhText || `${D.settings.minLen / 60}〜${D.settings.maxLen / 60}時間`}
+        <small>（レベルごとの時間は「設定」シート、人ごとの時間は「スタッフ」シートの「1日の勤務時間」で）</small></p>
     </div>
 
     <div class="card">
@@ -754,6 +778,13 @@ function renderAuto() {
         名前・開始日・終了日・増やす人数・時間帯（例：11-14,17-20。空なら一日中）を書きます。</p>
       ${busyList ? `<ul class="busylist">${busyList}</ul>` : '<p class="lead">登録されている繁忙期はありません。</p>'}
     </div>`;
+
+  // 必要人数：直したら保存ボタンを押せるようにする
+  document.querySelectorAll('input.dm').forEach(inp => inp.oninput = () => {
+    $('saveDemand').disabled = false;
+    $('demandMsg').textContent = '保存していない変更があります';
+  });
+  $('saveDemand').onclick = saveDemand;
 
   $('gen').onclick = () => {
     const btn = $('gen');
@@ -767,6 +798,33 @@ function renderAuto() {
       renderResult(ms);
     }, 0);
   };
+}
+
+/** 必要人数を保存する（画面の入力欄 → スプレッドシート）。 */
+async function saveDemand() {
+  const btn = $('saveDemand');
+  const next = { weekday: { hall: [], kitchen: [] }, weekend: { hall: [], kitchen: [] }, holiday: { hall: [], kitchen: [] } };
+  let bad = false;
+  document.querySelectorAll('input.dm').forEach(inp => {
+    const v = Number(inp.value);
+    if (!Number.isInteger(v) || v < 0 || v > 20) { bad = true; inp.classList.add('bad'); return; }
+    inp.classList.remove('bad');
+    next[inp.dataset.dt][inp.dataset.side][Number(inp.dataset.i)] = v;
+  });
+  if (bad) { $('demandMsg').textContent = '0〜20の数字で入れてください'; return; }
+
+  btn.disabled = true;
+  $('demandMsg').textContent = '保存しています…';
+  try {
+    await callRetry('mgr.saveDemand', { demand: next }, auth());
+    D.demand = next;
+    stale = shifts.length > 0;             // 叩き台を作り直すと新しい人数で組める
+    $('demandMsg').textContent = '保存しました。叩き台を作り直すと、新しい人数で組みます。';
+    toast('必要人数を保存しました');
+  } catch (err) {
+    btn.disabled = false;
+    $('demandMsg').textContent = '保存できませんでした：' + err.message;
+  }
 }
 
 function runGenerate() {
@@ -824,6 +882,7 @@ function renderSkill() {
         <div class="lvrow">
           ${skillTags(s)}
           <span class="lv zero">${esc(s.type)}</span>
+          <span class="lv zero">1日 ${dayLenText(s)}${s.dayHours ? '（個別）' : ''}</span>
           ${limit < D.settings.closeMin
             ? `<span class="lv warnlv">${hm(limit)}まで</span>` : ''}
         </div>
@@ -858,7 +917,7 @@ function renderSkill() {
 
     <div class="card">
       <h2>スキルカード</h2>
-      <p class="lead">ホール・キッチンのスキル（1 一人でできない／2 一人でできる／3 教えられる）と区分。高校生は22時までしか入りません。直すときはスプレッドシートの「スタッフ」シートで。</p>
+      <p class="lead">担当業務（ホール／キッチン／両方／研修中）とスタッフレベル（半人前／一人前／ベテラン）、1日の勤務時間。高校生は22時までしか入りません。直すときはスプレッドシートの「スタッフ」シートで。</p>
       ${people}
     </div>`;
 

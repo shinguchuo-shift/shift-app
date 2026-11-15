@@ -10,10 +10,16 @@
  *  - ルールの説明文をスキル段階に合わせる
  */
 
-/** ルールの説明文（スキル段階に合わせたもの）。 */
+/** ルールの説明文（2026-11-15 前半：スキル段階のとき）。 */
 var RULE_LABELS_V2 = {
   peak3: 'ピーク帯はホール・キッチンそれぞれレベル2以上の人を1人以上',
   rookie: 'レベル1の人は、同じ側にレベル2以上がいる時間にだけ入れる'
+};
+
+/** ルールの説明文（いま：担当業務＋スタッフレベル）。 */
+var RULE_LABELS_V3 = {
+  peak3: 'ピーク帯はホール・キッチンそれぞれ一人前以上の人を1人以上',
+  rookie: '研修中・半人前の人は、同じ側に一人前以上がいる時間にだけ入れる'
 };
 
 /** 以前の説明文。これと同じなら新しい説明文に置き換える。 */
@@ -38,15 +44,6 @@ var HOLIDAYS_JP = [
   ['2027-11-03', '文化の日'], ['2027-11-23', '勤労感謝の日']
 ];
 
-/** 旧「担当業務」→ スキル段階。研修中はどちらも1、それ以外は担当する側を2にする。 */
-function levelsFromDuty_(duty) {
-  var d = String(duty || '').trim();
-  if (d === '研修中' || d === 'trainee') return { hall: 1, kitchen: 1 };
-  if (d === 'ホール' || d === 'hall') return { hall: 2, kitchen: 0 };
-  if (d === 'キッチン' || d === 'kitchen') return { hall: 0, kitchen: 2 };
-  return { hall: 2, kitchen: 2 };                // 両方・空欄
-}
-
 /** その列を、シートの最終行まで「書式なしテキスト」にする（'11-14' が日付に化けないように）。 */
 function textWholeColumn_(key, col) {
   var sh = sheetOf(key);
@@ -59,32 +56,10 @@ function migrateV2() {
   var done = [];
   var ss = book();
 
-  // 1. スタッフ：担当業務 → ホール／キッチンのスキル
+  // 1. スタッフ：担当業務（ホール/キッチン/両方/研修中）＋スタッフレベル（1〜3）＋1日の勤務時間
+  //    シートは書き直さず、列の見出しと中身をその場で直す・列を差し込むだけ。ほかの列には触らない
   var staffSh = ss.getSheetByName(tabOf('Staff'));
-  var head = staffSh ? staffSh.getRange(1, 1, 1, staffSh.getLastColumn()).getValues()[0] : [];
-  if (staffSh && head.indexOf('担当業務') >= 0 && head.indexOf('ホールのスキル') < 0) {
-    // シートを書き直さず、「担当業務」の列だけをその場で2列に分ける。
-    // ほかの列（名前・LINEユーザーID・店長が足した列など）には一切さわらない
-    var dcol = head.indexOf('担当業務') + 1;
-    var idCol = head.indexOf('スタッフID') + 1;
-    var last = staffSh.getLastRow();
-    var duty = last > 1 ? staffSh.getRange(2, dcol, last - 1, 1).getValues() : [];
-    var ids = (last > 1 && idCol > 0) ? staffSh.getRange(2, idCol, last - 1, 1).getValues() : duty;
-    var n = 0;
-    var vals = duty.map(function (d, i) {
-      if (String(ids[i][0]).trim() === '' && String(d[0]).trim() === '') return ['', ''];   // 空の行
-      n++;
-      var lv = levelsFromDuty_(d[0]);
-      return [SKILL_LEVELS[lv.hall], SKILL_LEVELS[lv.kitchen]];
-    });
-    staffSh.insertColumnAfter(dcol);
-    staffSh.getRange(1, dcol, staffSh.getMaxRows(), 2).clearDataValidations();
-    staffSh.getRange(1, dcol, 1, 2).setValues([['ホールのスキル', 'キッチンのスキル']]);
-    if (vals.length) staffSh.getRange(2, dcol, vals.length, 2).setValues(vals);
-    invalidateTable('Staff');
-    applyDropdowns('Staff');
-    done.push('スタッフ：担当業務をホール・キッチンのスキルに分けました（' + n + '人）');
-  }
+  if (staffSh) done = done.concat(migrateStaffColumns_(staffSh));
 
   // 2. 必要人数：祝日の行（はじめは土日と同じ）
   var demand = readTable('Demand');
@@ -115,8 +90,8 @@ function migrateV2() {
     var changed = 0;
     readTable('Rules').forEach(function (r) {
       // 古い説明文のままの行だけ直す（店長が自分で書き換えた説明は触らない）
-      var want = RULE_LABELS_V2[r.rule_key];
-      if (want && RULE_LABELS_V1[r.rule_key] === r.label) {
+      var want = RULE_LABELS_V3[r.rule_key];
+      if (want && r.label !== want && (RULE_LABELS_V1[r.rule_key] === r.label || RULE_LABELS_V2[r.rule_key] === r.label)) {
         rulesSh.getRange(r._row, cols.indexOf('label') + 1).setValue(want);
         changed++;
       }
@@ -140,7 +115,20 @@ function migrateV2() {
     done.push('期間：足りない週を作りました（' + addWeeks.map(function (w) { return w[0]; }).join('、') + '）');
   }
 
-  // 開くたびに呼ばれるので、直したときだけログに残す
+  // 7. 設定：レベルごとの1日の勤務時間（はじめは今までと同じ3〜8時間）
+  var have = {};
+  readTable('Settings').forEach(function (r) { have[r.key] = true; });
+  var addSet = [];
+  [[1, '半人前'], [2, '一人前'], [3, 'ベテラン']].forEach(function (x) {
+    if (!have['day_min_h_' + x[0]]) addSet.push({ key: 'day_min_h_' + x[0], value: 3, note: x[1] + 'の1日の勤務時間の最短（時間）' });
+    if (!have['day_max_h_' + x[0]]) addSet.push({ key: 'day_max_h_' + x[0], value: 8, note: x[1] + 'の1日の勤務時間の最長（時間）。最短と同じにすると固定' });
+  });
+  if (addSet.length) {
+    appendRowsByHeader_('Settings', addSet);
+    done.push('設定：レベルごとの1日の勤務時間を足しました（はじめはどれも3〜8時間）');
+  }
+
+  // 直したときだけログに残す
   if (done.length) {
     appendRowTo('Log', { at: new Date(), type: 'setup', staff_id: '', detail: 'シートを更新：' + done.join(' / ') });
   }
@@ -155,4 +143,80 @@ function menuMigrate() {
     done.length ? done.map(function (x) { return '・' + x; }).join('\n')
                 : 'もう新しい形になっています。直すところはありませんでした。',
     ui.ButtonSet.OK);
+}
+
+/** スキルの欄（'2 一人でできる' や 2 や '入らない'）を数にする。 */
+function skillNum_(v) {
+  var m = String(v === undefined ? '' : v).match(/\d/);
+  return m ? Number(m[0]) : 0;
+}
+
+/**
+ * スタッフシートの列を「担当業務・スタッフレベル・1日の勤務時間」にそろえる。
+ * 列の差し込みと、その列の中身の書き換えだけを行う。
+ */
+function migrateStaffColumns_(sh) {
+  var done = [];
+  var head = function () {
+    return sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(function (h) { return String(h).trim(); });
+  };
+  var h = head();
+  var last = sh.getLastRow();
+  var n = Math.max(last - 1, 0);
+  var idCol = h.indexOf('スタッフID') + 1;
+  var ids = (n && idCol) ? sh.getRange(2, idCol, n, 1).getValues() : [];
+  var blank = function (i) { return !ids[i] || String(ids[i][0]).trim() === ''; };
+
+  // A. ホールのスキル・キッチンのスキル（0〜3）→ 担当業務・スタッフレベル（同じ2列を書き換える）
+  var ch = h.indexOf('ホールのスキル') + 1, ck = h.indexOf('キッチンのスキル') + 1;
+  if (ch && ck && h.indexOf('担当業務') < 0) {
+    var hv = n ? sh.getRange(2, ch, n, 1).getValues() : [];
+    var kv = n ? sh.getRange(2, ck, n, 1).getValues() : [];
+    var duty = [], level = [];
+    for (var i = 0; i < n; i++) {
+      if (blank(i)) { duty.push(['']); level.push(['']); continue; }
+      var a = skillNum_(hv[i][0]), b = skillNum_(kv[i][0]);
+      var d = (a >= 1 && b >= 1) ? ((a === 1 && b === 1) ? 'trainee' : 'both')
+            : a >= 1 ? 'hall' : b >= 1 ? 'kitchen' : 'both';
+      var lv = d === 'trainee' ? 1 : Math.min(3, Math.max(1, Math.max(a, b)));
+      duty.push([toSheetValue('Staff', 'duty', d)]);
+      level.push([toSheetValue('Staff', 'staff_level', lv)]);
+    }
+    sh.getRange(1, ch, sh.getMaxRows(), 1).clearDataValidations();
+    sh.getRange(1, ck, sh.getMaxRows(), 1).clearDataValidations();
+    sh.getRange(1, ch).setValue('担当業務');
+    sh.getRange(1, ck).setValue('スタッフレベル');
+    if (n) { sh.getRange(2, ch, n, 1).setValues(duty); sh.getRange(2, ck, n, 1).setValues(level); }
+    done.push('スタッフ：スキルの2列を「担当業務」「スタッフレベル」に直しました');
+    h = head();
+  }
+
+  // B. 担当業務だけある（スタッフレベルが無い）→ 右に「スタッフレベル」を差し込む
+  var cd = h.indexOf('担当業務') + 1;
+  if (cd && h.indexOf('スタッフレベル') < 0) {
+    var dv = n ? sh.getRange(2, cd, n, 1).getValues() : [];
+    sh.insertColumnAfter(cd);
+    sh.getRange(1, cd + 1, sh.getMaxRows(), 1).clearDataValidations();
+    sh.getRange(1, cd + 1).setValue('スタッフレベル');
+    if (n) sh.getRange(2, cd + 1, n, 1).setValues(dv.map(function (x, i) {
+      if (blank(i)) return [''];
+      return [toSheetValue('Staff', 'staff_level', String(x[0]).trim() === '研修中' ? 1 : 2)];
+    }));
+    done.push('スタッフ：「スタッフレベル」の列を足しました（研修中は半人前、ほかは一人前）');
+    h = head();
+  }
+
+  // C. 「1日の勤務時間」が無ければ、スタッフレベルの右に差し込む（空＝レベルの既定）
+  var cl = h.indexOf('スタッフレベル') + 1;
+  if (cl && h.indexOf('1日の勤務時間') < 0) {
+    sh.insertColumnAfter(cl);
+    var col = sh.getRange(1, cl + 1, sh.getMaxRows(), 1);
+    col.clearDataValidations();
+    col.setNumberFormat('@');          // 「4-6」が日付に化けないように
+    sh.getRange(1, cl + 1).setValue('1日の勤務時間');
+    done.push('スタッフ：「1日の勤務時間」の列を足しました（空ならレベルの既定。5なら5時間、4-6なら4〜6時間）');
+  }
+
+  if (done.length) { invalidateTable('Staff'); applyDropdowns('Staff'); }
+  return done;
 }

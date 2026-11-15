@@ -5,7 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { generate, checks, sidesOf, isTrainee, endLimitOf, levelOf, needAt } from '../web/js/scheduler.js';
+import { generate, checks, sidesOf, isTrainee, endLimitOf, levelOf, needAt, needsHelp, isCapable, dayLenOf } from '../web/js/scheduler.js';
 import { buildInput, DAYS, SLOTS, GRID, CLOSE_MIN, TYPE_END_LIMIT } from './fixtures.mjs';
 
 const byId = (input, id) => input.staff.find(s => s.id === id);
@@ -115,7 +115,7 @@ test('ルールを全部 OFF にしたら、不足以外のチェックが出な
 test('チェックが日ごとに返り、既知の種類だけを含む', () => {
   const input = buildInput();
   const shifts = generate(input);
-  const kinds = new Set(['不足', '責任者', 'ピーク', '締め', 'NG', '研修中', '時間外', '担当外']);
+  const kinds = new Set(['不足', '責任者', 'ピーク', '締め', 'NG', '研修中', '時間外', '担当外', '勤務時間']);
   for (const d of DAYS) {
     for (const c of checks(input, shifts, d.date)) {
       assert.ok(kinds.has(c.kind), `知らない種類: ${c.kind}`);
@@ -145,13 +145,11 @@ test('自動作成した結果に「時間外」のチェックは出ない', ()
   }
 });
 
-test('スキルが0の side には入らない', () => {
+test('担当業務どおりの side にしか入らない', () => {
   const input = buildInput();
   for (const s of generate(input)) {
     const staff = byId(input, s.staffId);
-    assert.ok(levelOf(staff, s.side) >= 1,
-      `${staff.name}（${JSON.stringify(staff.lv)}）が ${s.side} に入っている`);
-    assert.ok(sidesOf(staff).includes(s.side));
+    assert.ok(sidesOf(staff).includes(s.side), `${staff.name}（${staff.duty}）が ${s.side} に入っている`);
   }
 });
 
@@ -177,19 +175,19 @@ test('endLimitOf() が区分ごとの上限を返す', () => {
   }
 });
 
-test('レベル1の人は、同じ側にレベル2以上がいる時間にしか入らない（rookie が ON のとき）', () => {
+test('研修中・半人前は、同じ側に一人前以上がいる時間にしか入らない（rookie が ON のとき）', () => {
   const input = buildInput();
   const shifts = generate(input);
-  const trainees = input.staff.filter(s => isTrainee(s));
-  assert.ok(trainees.length > 0, 'サンプルにレベル1の人がいない（前提が崩れている）');
+  assert.ok(input.staff.some(s => isTrainee(s)), 'サンプルに研修中がいない（前提が崩れている）');
+  assert.ok(input.staff.some(s => !isTrainee(s) && levelOf(s) === 1), 'サンプルに半人前がいない（前提が崩れている）');
 
   for (const x of shifts) {
     const staff = byId(input, x.staffId);
-    if (levelOf(staff, x.side) !== 1) continue;
+    if (!needsHelp(staff)) continue;
     for (let m = x.start; m < x.end; m += GRID) {
       const ok = shifts.some(y => y !== x && y.date === x.date && y.side === x.side
-        && y.start <= m && m < y.end && levelOf(byId(input, y.staffId), x.side) >= 2);
-      assert.ok(ok, `${staff.name}（レベル1）が ${x.date} ${m / 60}時に1人`);
+        && y.start <= m && m < y.end && isCapable(byId(input, y.staffId)));
+      assert.ok(ok, `${staff.name} が ${x.date} ${m / 60}時に1人`);
     }
   }
   for (const d of DAYS) {
@@ -197,12 +195,33 @@ test('レベル1の人は、同じ側にレベル2以上がいる時間にしか
   }
 });
 
-test('スキルが0の側に手で入れるとチェックで出る', () => {
+test('担当業務の外の側に手で入れるとチェックで出る', () => {
   const input = buildInput();
-  const sato = byId(input, 's01');                  // 佐藤：ホールだけ
-  const shifts = [{ date: DAYS[0].date, staffId: 's01', side: 'kitchen', start: 600, end: 900 }];
-  assert.equal(levelOf(sato, 'kitchen'), 0);
+  const shifts = [{ date: DAYS[0].date, staffId: 's01', side: 'kitchen', start: 600, end: 900 }];   // 佐藤：ホールだけ
   assert.ok(checks(input, shifts, DAYS[0].date).some(c => c.kind === '担当外'));
+});
+
+test('1日の勤務時間：人ごとの設定どおりの長さで入る', () => {
+  const input = buildInput();
+  // 全員を「ちょうど4時間」にする
+  input.staff = input.staff.map(s => ({ ...s, dayMin: 240, dayMax: 240 }));
+  const shifts = generate(input);
+  assert.ok(shifts.length > 0);
+  for (const x of shifts) assert.equal(x.end - x.start, 240, `${x.staffId} ${x.date} が ${(x.end - x.start) / 60}時間`);
+});
+
+test('1日の勤務時間：設定が無ければ全体の min〜max', () => {
+  const input = buildInput();
+  const d = dayLenOf(input.staff[0], input);
+  assert.deepEqual(d, { min: input.minLen, max: input.maxLen });
+});
+
+test('1日の勤務時間から外れると「勤務時間」の注意が出る', () => {
+  const input = buildInput();
+  input.staff = input.staff.map(s => s.id === 's02' ? { ...s, dayMin: 300, dayMax: 360 } : s);
+  const shifts = [{ date: DAYS[0].date, staffId: 's02', side: 'kitchen', start: 540, end: 1020 }];   // 8時間
+  const c = checks(input, shifts, DAYS[0].date).find(x => x.kind === '勤務時間');
+  assert.ok(c && c.level === 'warn');
 });
 
 test('祝日は祝日の表を使う（土日と同じくピーク加算も付く）', () => {
