@@ -72,17 +72,28 @@ function mgrLoad(req, p) {
   readTable('Submissions', function (r) { return String(r.period_id) === want; })
     .forEach(function (r) { submissions[r.staff_id] = { method: r.method, at: r.updated_at }; });
 
-  // 必要人数
-  var demand = { weekday: { hall: [], kitchen: [] }, weekend: { hall: [], kitchen: [] },
-                 holiday: { hall: [], kitchen: [] } };
-  readTable('Demand').sort(function (a, b) { return a.start_min - b.start_min; })
-    .forEach(function (r) {
-      if (!demand[r.day_type]) return;
-      demand[r.day_type].hall.push(Number(r.hall) || 0);
-      demand[r.day_type].kitchen.push(Number(r.kitchen) || 0);
-    });
+  // 必要人数は、営業時間の刻み（スロット）ごとの配列にそろえる。
+  // 30分の行が無い時刻は、その前の時刻の人数を引き継ぐ（1時間ごとの表のままでも30分刻みで使える）
+  var grid0 = Number(st.grid_min) || 60;
+  var open0 = Number(st.open_min) || 600, close0 = Number(st.close_min) || 1440;
+  var demandRows = readTable('Demand');
+  var tableOf = function (dt) {
+    var rows = demandRows.filter(function (r) { return r.day_type === dt; })
+      .sort(function (a, b) { return Number(a.start_min) - Number(b.start_min); });
+    if (!rows.length) return null;
+    var t = { hall: [], kitchen: [] };
+    for (var m = open0; m < close0; m += grid0) {
+      var hit = null;
+      rows.forEach(function (r) { if (Number(r.start_min) <= m) hit = r; });
+      t.hall.push(hit ? Number(hit.hall) || 0 : 0);
+      t.kitchen.push(hit ? Number(hit.kitchen) || 0 : 0);
+    }
+    return t;
+  };
+  var demand = { weekday: tableOf('weekday') || { hall: [], kitchen: [] } };
+  demand.weekend = tableOf('weekend') || demand.weekday;
   // 祝日の行がまだ無いシートでは、土日の表を使う
-  if (!demand.holiday.hall.length) demand.holiday = demand.weekend;
+  demand.holiday = tableOf('holiday') || demand.weekend;
 
   // 祝日（日付 → 名前）
   var holidays = {};

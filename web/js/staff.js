@@ -18,6 +18,8 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
 // 閉店の 24:00 を 00:00 と出すと分かりにくいので、24 を超えないかぎりそのまま出す
 const hm = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 const WD = ['月', '火', '水', '木', '金', '土', '日'];
+// カレンダーの小さいマス用：「9」「9:30」のように短く
+const hShort = m => m % 60 ? `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}` : String(m / 60);
 
 let D = null;
 let devStaffId = null;    // 開発中だけ。LINE から開けば要らない
@@ -504,7 +506,7 @@ function daySection() {
     const num = Number(d.date.slice(8));
     cells.push(`<button class="cal-cell${cls}${sel}${v ? ' on' : ''}" data-date="${d.date}">
       <span class="n">${num}</span>
-      <span class="t">${v ? `${String(Math.floor(v.start / 60)).padStart(2, '0')}-${String(Math.floor(v.end / 60)).padStart(2, '0')}` : '休'}</span>
+      <span class="t">${v ? `${hShort(v.start)}-${hShort(v.end)}` : '休'}</span>
     </button>`);
   });
 

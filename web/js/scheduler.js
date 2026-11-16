@@ -121,17 +121,20 @@ const need = needAt;
 /** 分を HH:MM にする。 */
 const hhmm_ = m => `${String(Math.floor(m / 60) % 24).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 
-/** 連続する true を「10〜12時」のような文字列にまとめる。 */
-function ranges(flags, slots, grid) {
+/** 分を「10時」「10:30」のように短く書く（30分単位のときに半端が出る）。 */
+const hShort = m => m % 60 ? `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}` : `${m / 60}時`;
+
+/** 連続する true を「10〜12時」「10:30〜12時」のような文字列にまとめる。 */
+export function ranges(flags, slots, grid) {
   const out = [];
   let st = -1;
   for (let i = 0; i <= flags.length; i++) {
     if (i < flags.length && flags[i]) {
       if (st < 0) st = i;
     } else if (st >= 0) {
-      const from = Math.floor(slots[st] / 60);
-      const to = Math.floor((slots[i - 1] + grid) / 60);
-      out.push(`${from}〜${to}時`);
+      const from = slots[st], to = slots[i - 1] + grid;
+      // どちらも丁度の時刻なら従来どおり「10〜12時」
+      out.push(from % 60 || to % 60 ? `${hShort(from)}〜${hShort(to)}` : `${from / 60}〜${to / 60}時`);
       st = -1;
     }
   }
@@ -246,7 +249,7 @@ export function generate(input) {
               const score = WEIGHTS.hit * hit
                 + WEIGHTS.leader * lh
                 + WEIGHTS.peak3 * ph
-                + WEIGHTS.close * ch
+                + WEIGHTS.close * ch * (60 / grid)     // 締めのごほうびは1回きりなので、刻みが細かいときは釣り合うように増やす
                 - WEIGHTS.waste * (len - useful)
                 - WEIGHTS.rookie * alone
                 + WEIGHTS.teach * teach

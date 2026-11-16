@@ -91,7 +91,9 @@ function buildShiftSheet(periodId) {
     // 時刻の見出し行（日ごとに繰り返す）
     var head = new Array(TOTAL).fill('');
     for (var c = 0; c < cols; c++) {
-      var h = Math.floor((axisStart + c * grid) / 60) % 24;
+      var m = axisStart + c * grid;
+      if (m % 60) continue;                   // 30分の列には書かない（時刻は1時間に1つ。あとで2列を結合）
+      var h = Math.floor(m / 60) % 24;
       head[COL_T0 - 1 + c] = h === 0 ? 24 : h;
     }
     rows.push(head);
@@ -150,7 +152,8 @@ function buildShiftSheet(periodId) {
   // 値をまとめて書き込む（1回）
   sh.getRange(1, 1, rows.length, TOTAL).setValues(rows);
 
-  applyFormat_(sh, deco, { cols: cols, lanes: lanes, COL_DATE: COL_DATE, COL_T0: COL_T0, COL_MEMO: COL_MEMO, TOTAL: TOTAL, rows: rows.length });
+  applyFormat_(sh, deco, { cols: cols, lanes: lanes, COL_DATE: COL_DATE, COL_T0: COL_T0, COL_MEMO: COL_MEMO, TOTAL: TOTAL, rows: rows.length,
+                          grid: grid, axisStart: axisStart });
 
   // 行が足りなかった日は Log に残す（黙って人が消えるのを防ぐ）
   overflow.forEach(function (o) {
@@ -201,7 +204,9 @@ function applyFormat_(sh, deco, geo) {
 
   // 列幅：日付は広め、時刻は狭く、備考は広め
   sh.setColumnWidth(geo.COL_DATE, 58);
-  for (var c = 0; c < geo.cols; c++) sh.setColumnWidth(geo.COL_T0 + c, 26);
+  // 1時間＝26px。30分刻みなら1列13px（紙の幅は変えない）
+  var colW = Math.max(8, Math.round(26 * (geo.grid || 60) / 60));
+  for (var c = 0; c < geo.cols; c++) sh.setColumnWidth(geo.COL_T0 + c, colW);
   sh.setColumnWidth(geo.COL_MEMO, 78);
 
   deco.forEach(function (d) {
@@ -216,6 +221,15 @@ function applyFormat_(sh, deco, geo) {
     } else if (d.type === 'timehead') {
       sh.getRange(d.row, geo.COL_T0, 1, geo.cols)
         .setFontSize(7).setFontColor('#555555').setBackground('#f4f6f8');
+      // 30分刻みのときは、時刻の見出しを1時間ぶんの列で結合する
+      var per = Math.round(60 / (geo.grid || 60));
+      if (per > 1) {
+        for (var hc = 0; hc < geo.cols; hc++) {
+          if ((geo.axisStart + hc * geo.grid) % 60) continue;
+          var span = Math.min(per, geo.cols - hc);
+          if (span > 1) sh.getRange(d.row, geo.COL_T0 + hc, 1, span).merge();
+        }
+      }
       sh.setRowHeight(d.row, 14);
 
     } else if (d.type === 'block') {

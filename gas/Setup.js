@@ -33,7 +33,7 @@ function setupSampleData() {
     ['store_name', 'サンプル店', 'シフト表の見出しに出る'],
     ['open_min', 480, '営業開始（8:00）'],
     ['close_min', 1440, '営業終了（24:00）'],
-    ['grid_min', 60, '時間の刻み。60固定'],
+    ['grid_min', 30, '時間の刻み（分）。30＝30分単位'],
     ['sheet_axis_start_min', 480, 'シフト表の横軸の左端（8:00）'],
     ['sheet_axis_end_min', 1440, 'シフト表の横軸の右端（24:00）'],
     ['sheet_lanes', 12, 'シフト表の1日あたりの行数'],
@@ -119,9 +119,11 @@ function setupSampleData() {
 
   // --- Demand ---
   var demandRows = [];
+  // 30分ごと。1時間の見本の値を前半・後半に同じだけ入れる
   ['weekday', 'weekend', 'holiday'].forEach(function (dt) {
     SAMPLE_SLOTS.forEach(function (min, i) {
       demandRows.push([dt, min, SAMPLE_DEMAND.hall[i], SAMPLE_DEMAND.kitchen[i]]);
+      demandRows.push([dt, min + 30, SAMPLE_DEMAND.hall[i], SAMPLE_DEMAND.kitchen[i]]);
     });
   });
   writeTable('Demand', demandRows);

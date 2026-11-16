@@ -42,11 +42,16 @@ const staff = F.buildStaff().map((s, i) => ({
 }));
 const byId = Object.fromEntries(staff.map(s => [s.id, s]));
 const usualAll = F.buildUsual();
-const { requests, submissions } = F.buildRequests();
+const { submissions } = F.buildRequests();
 // 見本の繁忙期（週末のピーク帯にホール・キッチン+1）
 const busy = [{ name: '週末フェア', start: '2026-11-07', end: '2026-11-08', hall: 1, kitchen: 1,
   ranges: [[660, 840], [1020, 1200]], hours: '11-14,17-20' }];
-const input = F.buildInput({ busy });
+// 30分刻み。30分始まり・終わりの希望の見本も入れる（佐藤 金曜 9:30〜13:30、斎藤 月曜 18:30〜23:30）
+const input = F.buildInput30({ busy }, {
+  s01: { '2026-11-06': { start: 570, end: 810 } },
+  s19: { '2026-11-02': { start: 1110, end: 1410 } }
+});
+const requests = input.requests;
 const shifts = generate(input).map(s => ({ ...s, source: 'auto' }));
 // 手入力の行の見本：11/4 の夜に1人足した
 shifts.push({ date: '2026-11-04', staffId: 's19', side: 'hall', start: 1140, end: 1320, source: 'added' });
@@ -54,7 +59,7 @@ shifts.push({ date: '2026-11-04', staffId: 's19', side: 'hall', start: 1140, end
 /* ---------- 店長画面 ---------- */
 const mgr = {
   settings: {
-    storeName: STORE, grid: 60, openMin: 480, closeMin: 1440,
+    storeName: STORE, grid: 30, openMin: 480, closeMin: 1440,
     axisStart: 480, axisEnd: 1440, lanes: 12, minLen: 180, maxLen: 480,
     weekendPeakBoost: 1, peaks: F.PEAKS,
     footerNote: '※シフト希望は毎週木曜日〆切です。原則雇用時通りの提出を心掛けてください。',
@@ -70,12 +75,12 @@ const mgr = {
     { id: '2026-11-02', startDate: '2026-11-02', endDate: '2026-11-08', status: 'closed', monthId: '2026-11' }
   ],
   days: F.DAYS.map(d => ({ date: d.date, dow: d.dow, label: d.label, wd: d.wd, dayType: d.dayType, holiday: d.holiday || '' })),
-  slots: F.SLOTS,
+  slots: input.slots,
   staff,
   requests,
   submissions: Object.fromEntries(Object.entries(submissions).filter(([, v]) => v)
     .map(([k]) => [k, { method: 'usual', at: '2026-10-28' }])),
-  demand: { weekday: F.BASE_DEMAND, weekend: F.BASE_DEMAND, holiday: F.BASE_DEMAND },
+  demand: input.demand,
   busy,
   rules: { leader: true, peak3: true, close: true, ng: true, rookie: true },
   ruleLevels: { leader: 'error', peak3: 'error', close: 'error', ng: 'error', rookie: 'warn' },
@@ -101,7 +106,7 @@ function meFor(sid, { monthOpen, monthSubmitted, weekSubmitted }) {
   return {
     me: { id: sid, name: s.name, type: s.type, capMin: s.capMin },
     settings: {
-      storeName: STORE, openMin: 480, closeMin: 1440, grid: 60, minLen: 180,
+      storeName: STORE, openMin: 480, closeMin: 1440, grid: 30, minLen: 180,
       endLimit: F.TYPE_END_LIMIT[s.type] || 1440
     },
     usual,

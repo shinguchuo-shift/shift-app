@@ -213,3 +213,18 @@ export function buildInput(overrides = {}) {
     ...overrides
   };
 }
+
+/**
+ * 30分刻みの入力にする。必要人数は1時間の値を前後半に同じだけ入れる。
+ * extraRequests で、30分始まりの希望を足せる（{ staffId: { date: {start,end} } }）。
+ */
+export function buildInput30(overrides = {}, extraRequests = {}) {
+  const base = buildInput();
+  const slots = [];
+  for (let m = OPEN_MIN; m < CLOSE_MIN; m += 30) slots.push(m);
+  const twice = arr => arr.flatMap(v => [v, v]);
+  const t = { hall: twice(BASE_DEMAND.hall), kitchen: twice(BASE_DEMAND.kitchen) };
+  const requests = JSON.parse(JSON.stringify(base.requests));
+  for (const [sid, days] of Object.entries(extraRequests)) Object.assign(requests[sid] = requests[sid] || {}, days);
+  return { ...base, grid: 30, slots, requests, demand: { weekday: t, weekend: t, holiday: t }, ...overrides };
+}

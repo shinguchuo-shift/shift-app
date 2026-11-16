@@ -128,6 +128,9 @@ function migrateV2() {
     done.push('設定：レベルごとの1日の勤務時間を足しました（はじめはどれも3〜8時間）');
   }
 
+  // 8. 30分単位（2026-11-16 オーナー要望）：刻みを30分にし、必要人数に30分の行を足す
+  done = done.concat(migrateTo30_());
+
   // 直したときだけログに残す
   if (done.length) {
     appendRowTo('Log', { at: new Date(), type: 'setup', staff_id: '', detail: 'シートを更新：' + done.join(' / ') });
@@ -218,5 +221,61 @@ function migrateStaffColumns_(sh) {
   }
 
   if (done.length) { invalidateTable('Staff'); applyDropdowns('Staff'); }
+  return done;
+}
+
+/**
+ * 刻みを30分にする。
+ *  - 設定の grid_min を 30 に
+ *  - 必要人数の「1時間ごとの行」に、同じ人数の「30分の行」を足す（9:00 が 3人なら 9:30 も 3人）
+ *  - 足したあと、必要人数の行を「平日・土日・祝日」「時刻」の順に並べ替える（行の中身は変えない）
+ * もう30分になっていれば何もしない。
+ */
+function migrateTo30_() {
+  var done = [];
+  var st = readSettings();
+  var grid = Number(st.grid_min) || 60;
+  var openMin = Number(st.open_min) || 480, closeMin = Number(st.close_min) || 1440;
+
+  if (grid !== 30) {
+    var setSh = sheetOf('Settings');
+    var row = readTable('Settings').filter(function (r) { return r.key === 'grid_min'; })[0];
+    var head = setSh.getRange(1, 1, 1, setSh.getLastColumn()).getValues()[0].map(function (h) { return String(h).trim(); });
+    var cv = head.indexOf('値') + 1, cn = head.indexOf('説明') + 1;
+    if (row && cv) {
+      setSh.getRange(row._row, cv).setValue(30);
+      if (cn) setSh.getRange(row._row, cn).setValue('時間の刻み（分）。30＝30分単位');
+    } else {
+      appendRowsByHeader_('Settings', [{ key: 'grid_min', value: 30, note: '時間の刻み（分）。30＝30分単位' }]);
+    }
+    invalidateTable('Settings');
+    done.push('設定：時間の刻みを30分にしました');
+  }
+
+  // 必要人数：30分の行が無い時刻に足す
+  var rows = readTable('Demand');
+  var have = {};
+  rows.forEach(function (r) { have[r.day_type + '/' + Number(r.start_min)] = true; });
+  var add = [];
+  rows.forEach(function (r) {
+    var m = Number(r.start_min) + 30;
+    if (Number(r.start_min) % 60 !== 0 || m >= closeMin || m < openMin) return;
+    if (have[r.day_type + '/' + m]) return;
+    add.push({ day_type: r.day_type, start_min: m, hall: r.hall, kitchen: r.kitchen });
+    have[r.day_type + '/' + m] = true;
+  });
+  if (add.length) {
+    appendRowsByHeader_('Demand', add);
+    // 並べ替え（行ごと動くだけで、中身は変わらない）。見出しの名前で列を探す
+    var sh = sheetOf('Demand');
+    var hd = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(function (h) { return String(h).trim(); });
+    var cType = hd.indexOf('平日・土日') + 1, cStart = hd.indexOf('開始') + 1;
+    if (cType && cStart && sh.getLastRow() > 2) {
+      sh.getRange(2, 1, sh.getLastRow() - 1, sh.getLastColumn())
+        .sort([{ column: cType, ascending: true }, { column: cStart, ascending: true }]);
+    }
+    invalidateTable('Demand');
+    done.push('必要人数：30分の行を足しました（' + add.length + '行。はじめは前の時刻と同じ人数）');
+  }
   return done;
 }

@@ -283,3 +283,6 @@ table.wk input.dm { width: 46px; text-align: center; font: inherit; font-size: 1
   border: 1px solid var(--line); border-radius: 5px; background: #fff; }
 table.wk input.dm:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
 table.wk input.dm.bad { border-color: var(--err); background: #fff1f0; }
+
+/* 30分刻み：30分の境目は点線にして、1時間の区切りが分かるようにする */
+table.wk td.half { border-left-style: dotted; }

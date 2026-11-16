@@ -5,8 +5,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { generate, checks, sidesOf, isTrainee, endLimitOf, levelOf, needAt, needsHelp, isCapable, dayLenOf } from '../web/js/scheduler.js';
-import { buildInput, DAYS, SLOTS, GRID, CLOSE_MIN, TYPE_END_LIMIT } from './fixtures.mjs';
+import { generate, checks, sidesOf, isTrainee, endLimitOf, levelOf, needAt, needsHelp, isCapable, dayLenOf, ranges } from '../web/js/scheduler.js';
+import { buildInput, buildInput30, DAYS, SLOTS, GRID, CLOSE_MIN, TYPE_END_LIMIT } from './fixtures.mjs';
 
 const byId = (input, id) => input.staff.find(s => s.id === id);
 
@@ -271,4 +271,45 @@ test('スロットの境界に合っている（grid の倍数）', () => {
     assert.equal((s.start - SLOTS[0]) % GRID, 0, `${s.staffId}: 開始がスロット境界でない`);
     assert.equal((s.end - SLOTS[0]) % GRID, 0, `${s.staffId}: 終了がスロット境界でない`);
   }
+});
+
+/* ---------- 30分刻み ---------- */
+
+test('30分刻み：配置され、すべて30分の境界・希望の中・上限内に収まる', () => {
+  // 佐藤（s01）に 9:30〜14:30 の希望を足す
+  const input = buildInput30({}, { s01: { '2026-11-06': { start: 570, end: 870 } } });
+  const shifts = generate(input);
+  assert.ok(shifts.length > 50, `配置が少なすぎる: ${shifts.length}件`);
+  const used = {};
+  for (const x of shifts) {
+    assert.equal(x.start % 30, 0); assert.equal(x.end % 30, 0);
+    const r = input.requests[x.staffId][x.date];
+    assert.ok(r && x.start >= r.start && x.end <= r.end, `${x.staffId} ${x.date} が希望の外`);
+    used[x.staffId] = (used[x.staffId] || 0) + (x.end - x.start);
+    const d = dayLenOf(byId(input, x.staffId), input);
+    assert.ok(x.end - x.start >= d.min && x.end - x.start <= d.max);
+  }
+  for (const [id, min] of Object.entries(used)) assert.ok(min <= byId(input, id).capMin);
+});
+
+test('30分刻み：30分始まりの希望の人を、30分始まりで入れられる', () => {
+  // 金曜は佐藤（ホール）だけが 9:30〜12:30（ちょうど3時間）に出られる、という状況を作る
+  const input = buildInput30({}, { s01: { '2026-11-06': { start: 570, end: 750 } } });
+  for (const sid of Object.keys(input.requests)) if (sid !== 's01') delete input.requests[sid]['2026-11-06'];
+  const x = generate(input).find(s => s.staffId === 's01' && s.date === '2026-11-06');
+  assert.ok(x, '佐藤が金曜に入っていない');
+  assert.equal(x.start, 570);
+});
+
+test('30分刻み：高校生は22時を超えない', () => {
+  const input = buildInput30();
+  for (const s of generate(input)) {
+    if (byId(input, s.staffId).type === '高校生') assert.ok(s.end <= 22 * 60);
+  }
+});
+
+test('時間帯の文字は、30分の半端があれば「10:30〜12時」の形になる', () => {
+  const slots = [600, 630, 660, 690, 720];
+  assert.equal(ranges([false, true, true, true, false], slots, 30), '10:30〜12時');
+  assert.equal(ranges([true, true, false, false, false], [600, 660, 720, 780, 840], 60), '10〜12時');
 });

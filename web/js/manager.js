@@ -596,6 +596,21 @@ function openAddPanel(date, min) {
   });
 }
 
+/**
+ * 時刻の見出し。1時間に1つ「8・9・10…」を出し、30分刻みなら2マスをまとめる。
+ */
+function hourHeads(cols, axisStart, grid) {
+  let html = '';
+  for (let i = 0; i < cols; i++) {
+    const m = axisStart + i * grid;
+    if (m % 60) { html += '<th class="hr"></th>'; continue; }      // 軸が30分始まりのときの端
+    const span = Math.min(Math.round(60 / grid), cols - i);
+    html += `<th class="hr"${span > 1 ? ` colspan="${span}"` : ''}>${hourLabel(m)}</th>`;
+    i += span - 1;
+  }
+  return html;
+}
+
 /** 紙と同じ並びの表を組み立てる。 */
 function weekTable() {
   const { axisStart, axisEnd, grid, lanes } = D.settings;
@@ -643,17 +658,17 @@ function weekTable() {
       + (over ? `<br><small class="over" title="紙は${lanes}行までです">紙に収まりません</small>` : '')
       + `<br><button class="addrow" data-date="${day.date}" title="手入力の行を1つ増やします">＋行を追加</button>`
       + '</th>'
-      + Array.from({ length: cols }, (_, i) =>
-        `<th class="hr">${hourLabel(axisStart + i * grid)}</th>`).join('')
+      + hourHeads(cols, axisStart, grid)
       + `<td class="memo" rowspan="${rows + 1}">${esc(D.notes[day.date] || '')}</td></tr>`;
 
-    // 空きマス。営業時間内なら押して人を追加できる
+    // 空きマス。営業時間内なら押して人を追加できる。30分の境目は点線にする
     const blank = (ci) => {
       const min = axisStart + ci * grid;
+      const half = min % 60 ? ' half' : '';
       const inOpen = min >= D.settings.openMin && min < D.settings.closeMin;
       return inOpen
-        ? `<td class="blank add" data-date="${day.date}" data-min="${min}"></td>`
-        : '<td class="blank"></td>';
+        ? `<td class="blank add${half}" data-date="${day.date}" data-min="${min}"></td>`
+        : `<td class="blank${half}"></td>`;
     };
 
     // バーの行（手入力の行は色を変え、最初の行の上に区切り線）
@@ -688,7 +703,7 @@ function weekTable() {
           && x.start <= min && min < x.end).length;
         return a + Math.max(0, need(day, side, si) - c2);
       }, 0);
-      return `<td class="${s ? 'sh' : ''}">${s ? '−' + s : ''}</td>`;
+      return `<td class="${s ? 'sh' : ''}${min % 60 ? ' half' : ''}">${s ? '−' + s : ''}</td>`;
     }).join('') + '</tr>';
   }
   return html + '</table>';
