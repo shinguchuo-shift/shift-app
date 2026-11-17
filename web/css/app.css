@@ -286,3 +286,8 @@ table.wk input.dm.bad { border-color: var(--err); background: #fff1f0; }
 
 /* 30分刻み：30分の境目は点線にして、1時間の区切りが分かるようにする */
 table.wk td.half { border-left-style: dotted; }
+
+/* 提出した人 */
+.chip.ok { background: #eefaf2; border-color: #a7ddbd; color: #1f6b3a; }
+.chip small { margin-left: 4px; padding: 0 4px; border-radius: 4px; background: #fff; color: var(--sub); font-size: 10px; }
+#sub a { color: var(--accent); }

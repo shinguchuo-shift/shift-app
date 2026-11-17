@@ -218,7 +218,7 @@ function stepsBar(now) {
     <button class="${cls('month', !!m)}" data-view="month"${m ? '' : ' disabled'}>
       <b>① 月の暫定</b>${m ? monthLabel(m) : '—'}<br>${m ? (m.submitted ? '提出済み' : '未提出') : ''}</button>
     <button class="${cls('week', !!w)}" data-view="week"${w ? '' : ' disabled'}>
-      <b>② 週の確認</b>${w ? `${fmt(w.startDate)}〜` : '—'}<br>${w ? (w.submitted ? '提出済み' : '未提出') : ''}</button>
+      <b>② 週の確認</b>${w ? `${fmt(w.startDate)}〜` : '—'}<br>${w ? (w.submitted ? '提出済み' : w.monthSubmitted ? '月の希望で反映' : '未提出') : ''}</button>
   </div>`;
 }
 
@@ -247,8 +247,10 @@ function renderHome(el) {
             ? `・${hm(D.settings.endLimit)}まで` : ''}</p></div>
       ${target && target.kind === 'week' && target.status === 'published'
         ? '<span class="pill ok">確定済み</span>'
-        : `<span class="pill ${target && target.submitted ? 'ok' : 'ng'}">${
-          target && target.submitted ? '提出済み' : '未提出'}</span>`}
+        : target && target.kind === 'week' && !target.submitted && target.monthSubmitted
+          ? '<span class="pill ok">月の希望で反映</span>'
+          : `<span class="pill ${target && target.submitted ? 'ok' : 'ng'}">${
+            target && target.submitted ? '提出済み' : '未提出'}</span>`}
     </div>
     ${stepsBar(showWeek ? 'week' : 'month')}`;
 
@@ -334,6 +336,16 @@ function renderWeekHome(w, m) {
     html += `<div class="box"><p class="eyebrow">この週の希望（提出済み）</p>
       ${weekList(w.days, w.requests, m)}</div>
       <div class="acts"><button class="btn ghost" id="edWeek">内容を直す</button></div>`;
+  } else if (w.monthSubmitted) {
+    // 月の希望がそのままシフト表に使われる。週は変わるときだけ直せばよい
+    html += `<div class="box">
+      <p class="eyebrow">この週は、月の希望がそのまま使われます</p>
+      ${weekList(w.days, base, m)}</div>
+      <p class="small">変わるところがあるときだけ「この週は変える」で直してください。何もしなくても大丈夫です。</p>
+      <div class="acts">
+        <button class="btn big" id="edWeek">この週は変える</button>
+        <button class="btn ghost" id="wOk">このままでOK（確認済みにする）</button>
+      </div>`;
   } else if (hasBase) {
     html += `<div class="box">
       <p class="eyebrow">${monthLabel(m)}の暫定ではこうなっています</p>

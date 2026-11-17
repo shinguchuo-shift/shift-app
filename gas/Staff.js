@@ -115,6 +115,10 @@ function meLoad(req, p) {
       if (monthReq[d.date]) base[d.date] = monthReq[d.date];
     });
     week.fromMonth = base;
+    // 月の希望を出していれば、週を出さなくても月の希望がシフト表に使われる
+    week.monthSubmitted = readTable('Submissions', function (r) {
+      return String(r.period_id) === parentId && r.staff_id === me.staff_id;
+    }).length > 0;
   }
 
   // 確定済みの週は、自分の確定シフトも返す

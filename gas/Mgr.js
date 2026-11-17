@@ -54,23 +54,73 @@ function mgrLoad(req, p) {
     };
   });
 
-  // 希望（最新 rev だけを採る）
-  var requests = {}, latest = {};
-  readTable('Requests', function (r) { return String(r.period_id) === want && r.active !== false; })
-    .forEach(function (r) {
-      var k = r.staff_id + '/' + dateKey_(r.date);
-      var rev = Number(r.rev) || 1;
-      if (latest[k] !== undefined && latest[k] >= rev) return;
-      latest[k] = rev;
-      if (!requests[r.staff_id]) requests[r.staff_id] = {};
-      requests[r.staff_id][dateKey_(r.date)] = {
-        start: Number(r.start_min), end: Number(r.end_min)
-      };
-    });
+  // 希望。月の希望をもとにし、週を出した人だけ週の内容で置きかえる（2026-11-17 オーナー要望）
+  //  - 週を出した人   → 週の希望（source='week'）
+  //  - 週を出していないが、その日が入る月の希望を出した人 → 月の希望（source='month'）
+  //  - どちらも出していない人 → 未提出
+  var latestOf = function (pid, staffFilter) {           // { staffId: { date: {start,end} } }（最新 rev）
+    var out = {}, latest = {};
+    readTable('Requests', function (r) { return String(r.period_id) === pid && r.active !== false; })
+      .forEach(function (r) {
+        var k = r.staff_id + '/' + dateKey_(r.date);
+        var rev = Number(r.rev) || 1;
+        if (latest[k] !== undefined && latest[k] >= rev) return;
+        latest[k] = rev;
+        if (!out[r.staff_id]) out[r.staff_id] = {};
+        out[r.staff_id][dateKey_(r.date)] = { start: Number(r.start_min), end: Number(r.end_min) };
+      });
+    return out;
+  };
+  var subsOf = function (pid) {
+    var out = {};
+    readTable('Submissions', function (r) { return String(r.period_id) === pid; })
+      .forEach(function (r) { out[r.staff_id] = { method: r.method, at: r.updated_at }; });
+    return out;
+  };
 
-  var submissions = {};
-  readTable('Submissions', function (r) { return String(r.period_id) === want; })
-    .forEach(function (r) { submissions[r.staff_id] = { method: r.method, at: r.updated_at }; });
+  var weekReq = latestOf(want);
+  var weekSub = subsOf(want);
+
+  // この週の日付と、その日が入る月（週が月をまたぐときは日ごとに違う月）
+  var wk0 = new Date(dateKey_(period.start_date) + 'T00:00:00');
+  var weekDates = [];
+  for (var wi = 0; wi < 7; wi++) {
+    var wd = new Date(wk0.getTime()); wd.setDate(wd.getDate() + wi); weekDates.push(dateKey_(wd));
+  }
+  var months = readTable('Periods', function (r) { return r.kind === 'month'; });
+  var monthOf = function (date) {
+    return months.filter(function (m) { return dateKey_(m.start_date) <= date && date <= dateKey_(m.end_date); })[0];
+  };
+  var monthData = {};                                     // monthId → { req, sub }
+  weekDates.forEach(function (date) {
+    var m = monthOf(date);
+    if (m && !monthData[m.period_id]) {
+      monthData[m.period_id] = { req: latestOf(String(m.period_id)), sub: subsOf(String(m.period_id)) };
+    }
+  });
+
+  var requests = {}, submissions = {};
+  readTable('Staff').forEach(function (s) {
+    var id = s.staff_id;
+    if (weekSub[id]) {
+      requests[id] = weekReq[id] || {};
+      submissions[id] = { method: weekSub[id].method, at: weekSub[id].at, source: 'week' };
+      return;
+    }
+    var got = {}, from = null;
+    weekDates.forEach(function (date) {
+      var m = monthOf(date);
+      var md = m && monthData[m.period_id];
+      if (!md || !md.sub[id]) return;
+      from = from || md.sub[id];
+      var r = (md.req[id] || {})[date];
+      if (r) got[date] = r;
+    });
+    if (from) {
+      requests[id] = got;
+      submissions[id] = { method: 'month', at: from.at, source: 'month' };
+    }
+  });
 
   // 必要人数は、営業時間の刻み（スロット）ごとの配列にそろえる。
   // 30分の行が無い時刻は、その前の時刻の人数を引き継ぐ（1時間ごとの表のままでも30分刻みで使える）

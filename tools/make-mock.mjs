@@ -77,9 +77,14 @@ const mgr = {
   days: F.DAYS.map(d => ({ date: d.date, dow: d.dow, label: d.label, wd: d.wd, dayType: d.dayType, holiday: d.holiday || '' })),
   slots: input.slots,
   staff,
-  requests,
-  submissions: Object.fromEntries(Object.entries(submissions).filter(([, v]) => v)
-    .map(([k]) => [k, { method: 'usual', at: '2026-10-28' }])),
+  requests: { ...requests, s07: Object.fromEntries(F.DAYS.filter(d => usualAll.s07.some(u => u.dow === d.dow))
+    .map(d => { const u = usualAll.s07.find(x => x.dow === d.dow); return [d.date, { start: u.start, end: u.end }]; })) },
+  // 週を出した人のほか、山本（s07）は週は未提出だが月の希望を出している（月の希望がそのまま使われる）
+  submissions: {
+    ...Object.fromEntries(Object.entries(submissions).filter(([, v]) => v)
+      .map(([k]) => [k, { method: 'usual', at: '2026-10-28', source: 'week' }])),
+    s07: { method: 'month', at: '2026-10-25', source: 'month' }
+  },
   demand: input.demand,
   busy,
   rules: { leader: true, peak3: true, close: true, ng: true, rookie: true },

@@ -99,17 +99,24 @@ async function init() {
   }
 }
 
-/** 見出し。対象週の切り替えもここに出す。 */
+/**
+ * 見出し。いま見ている週を文字で出す。
+ * 週の切り替えは「スキル」タブの「対象の月と週」でする（上にプルダウンがあると分かりにくい、というオーナーの声）。
+ */
 function renderHeader() {
+  $('sub').innerHTML = `いま見ている週：<b>${fmt(D.period.startDate)}〜${fmt(D.period.endDate)}</b>`
+    + `（${statusLabel(D.period.status)}）`
+    + ` <a href="#" id="toWeekPick" class="small">週を切り替える</a>`
+    + ` <span class="small">スタッフ${D.staff.length}名</span>`;
+  $('toWeekPick').onclick = e => { e.preventDefault(); show('skill'); };
+}
+
+/** 週のプルダウン（「対象の月と週」の欄に置く）。 */
+function weekPicker() {
   const opts = (D.weeks || []).map(w =>
     `<option value="${w.id}"${w.id === D.period.id ? ' selected' : ''}>`
     + `${fmt(w.startDate)}〜${fmt(w.endDate)}（${statusLabel(w.status)}）</option>`).join('');
-
-  $('sub').innerHTML =
-    `<label class="wk-pick">対象週 <select id="weekSel">${opts}</select></label>`
-    + ` <span class="small">スタッフ${D.staff.length}名</span>`;
-
-  $('weekSel').onchange = e => switchWeek(e.target.value);
+  return `<label>見る週<select id="weekSel">${opts}</select></label>`;
 }
 
 const fmt = d => { const a = String(d).split('-'); return `${+a[1]}/${+a[2]}`; };
@@ -117,7 +124,7 @@ const fmt = d => { const a = String(d).split('-'); return `${+a[1]}/${+a[2]}`; }
 /** 別の週に切り替える。手直しが未保存なら止める。 */
 async function switchWeek(id) {
   if (id === D.period.id) return;
-  if (dirty && !confirmLeave()) { $('weekSel').value = D.period.id; return; }
+  if (dirty && !confirmLeave()) { if ($('weekSel')) $('weekSel').value = D.period.id; return; }
   const keep = tab;
   $('body').innerHTML = '<div class="state">切り替えています…</div>';
   try {
@@ -235,7 +242,10 @@ function dayShort(day) {
 function renderSub() {
   const submitted = D.staff.filter(s => D.submissions[s.id]);
   const missing = D.staff.filter(s => !D.submissions[s.id]);
+  const byWeek = submitted.filter(s => D.submissions[s.id].source !== 'month');
+  const byMonth = submitted.filter(s => D.submissions[s.id].source === 'month');
   const pct = Math.round(submitted.length / D.staff.length * 100);
+  const chip = (s, cls, tag) => `<span class="chip ${cls}">${esc(s.name)}${tag ? `<small>${tag}</small>` : ''}</span>`;
 
   $('body').innerHTML = `
     <div class="card">
@@ -243,15 +253,24 @@ function renderSub() {
       <p class="lead">〆切までに希望を出した人。未提出の人にだけリマインドを送ります。</p>
       <div class="kpis">
         <div class="kpi"><span>提出済み</span><b>${submitted.length} / ${D.staff.length}</b></div>
+        <div class="kpi"><span>うち週を出した</span><b>${byWeek.length}</b></div>
+        <div class="kpi"><span>うち月の希望のまま</span><b>${byMonth.length}</b></div>
         <div class="kpi"><span>未提出</span><b>${missing.length}</b></div>
-        <div class="kpi"><span>いつも通り</span><b>${
-          submitted.filter(s => D.submissions[s.id].method === 'usual').length}</b></div>
       </div>
       <div class="bar"><i style="width:${pct}%"></i></div>
     </div>
 
     <div class="card">
-      <h2>未提出の人</h2>
+      <h2>提出した人（${submitted.length}人）</h2>
+      <p class="lead">「月」の印は、週の確認は出していないが月の希望を出している人です（月の希望がそのまま使われます）。</p>
+      <div class="people">${
+        submitted.length
+          ? byWeek.map(s => chip(s, 'ok', '')).join('') + byMonth.map(s => chip(s, 'ok', '月')).join('')
+          : '<p class="lead">まだ誰も出していません。</p>'}</div>
+    </div>
+
+    <div class="card">
+      <h2>未提出の人（${missing.length}人）</h2>
       <p class="lead">${missing.length ? '声をかける、またはリマインドを送ってください。' : '全員から届いています。'}</p>
       <div class="people">${
         missing.length
@@ -261,7 +280,7 @@ function renderSub() {
 
     <div class="card">
       <h2>出された希望</h2>
-      <p class="lead">誰が、どの日の何時から何時まで出られるか。「いつも通り」と違う人には印を付けています。</p>
+      <p class="lead">誰が、どの日の何時から何時まで出られるか。名前の下の「月」は、月の希望をそのまま使っている人です。</p>
       <div class="sheet">${requestTable()}</div>
     </div>`;
 }
@@ -305,7 +324,7 @@ function requestTable() {
 
     const over = totalMin > s.capMin;
     return `<tr><td class="who">${esc(s.name)}`
-      + `<small>${esc(s.type)}</small></td>${cells}`
+      + `<small>${esc(s.type)}${sub.source === 'month' ? '・月' : ''}</small></td>${cells}`
       + `<td class="tot${over ? ' over' : ''}">${totalMin / 60}h<small>/${s.capMin / 60}h</small></td></tr>`;
   }).join('');
 
@@ -916,6 +935,9 @@ function renderSkill() {
     </div>
     <div class="card">
       <h2>対象の月と週</h2>
+      <p class="lead">見る週をここで切り替えます。提出状況・シフト表・自動作成は、ここで選んだ週のものになります。</p>
+      <div class="frow">${weekPicker()}</div>
+      <hr style="border:0;border-top:1px solid var(--line);margin:14px 0">
       <p class="lead">毎月はじめにここで次の月を開きます。月の暫定とその月の週がまとめて作られます。</p>
       <div class="frow">
         <label>開く月<input type="month" id="newMonth" value="${nextMonthValue()}"></label>
@@ -942,6 +964,7 @@ function renderSkill() {
   });
   $('openMonth').onclick = openMonth;
   document.querySelectorAll('[data-st]').forEach(b => b.onclick = () => setStatus(b.dataset.st));
+  if ($('weekSel')) $('weekSel').onchange = e => switchWeek(e.target.value);
   $('saveRules').onclick = async () => {
     try {
       await callRetry('mgr.saveRules', { rules: D.rules }, auth());
