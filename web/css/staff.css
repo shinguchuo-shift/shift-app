@@ -168,3 +168,27 @@ ul.pat .tagc { font-size: 10px; color: var(--accent); margin-left: 6px; }
 .tagc.side { background: #fff; }
 details.box summary { cursor: pointer; }
 ul.pat li .tagc.side, ul.pat li.we .tagc.side, ul.pat li.sun .tagc.side { color: #2753c9; }
+
+/* 確定したシフト：全員の表（日ごとに名前＋時間のバー） */
+.board { margin: 4px 0 8px; }
+.bday { background: #f7f9fb; border-radius: 10px; padding: 8px 10px 10px; margin-bottom: 10px; }
+.bhd { margin: 0 0 2px; font-size: 13px; font-weight: 700; }
+.bhd.we { color: var(--sat); } .bhd.sun { color: var(--sun); }
+.bhd span { margin-left: 6px; font-weight: 400; font-size: 11px; color: var(--sub); }
+.bhd em { margin-left: 8px; font-style: normal; font-weight: 400; font-size: 11px; color: #b45309; }
+.bticks { position: relative; height: 13px; margin-left: 64px; font-size: 9px; color: var(--sub); }
+.bticks span { position: absolute; transform: translateX(-50%); }
+.brow { display: flex; align-items: center; height: 22px; }
+.bn { width: 64px; flex: none; font-size: 11px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.btrack { position: relative; flex: 1; height: 18px; background: #fff; border-radius: 4px;
+  background-image: repeating-linear-gradient(90deg, transparent 0 calc(12.5% - 1px), #e6e9ee calc(12.5% - 1px) 12.5%); }
+.btrack i { position: absolute; top: 1px; bottom: 1px; border-radius: 4px; font-style: normal; font-size: 9.5px;
+  line-height: 16px; padding: 0 3px; white-space: nowrap; overflow: hidden; color: #1a1d21; }
+.btrack i b { margin-left: 3px; font-weight: 700; opacity: .7; }
+.brow.me .bn { font-weight: 700; color: #2753c9; }
+.brow.me .btrack i { background: #2753c9; color: #fff; }
+
+/* 「シフトが確定しました」のお知らせ */
+.newpub { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 10px 0 0;
+  padding: 9px 12px; border-radius: 10px; background: #eef6ff; border: 1px solid #c9ddf7; font-size: 13px; font-weight: 600; }
+.pubtabs { margin-top: 8px; }

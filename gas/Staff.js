@@ -61,7 +61,7 @@ function daysOf_(period) {
 
 /** スタッフ画面に必要なデータを一度に返す。 */
 function meLoad(req, p) {
-  prefetchTables(['Settings', 'Staff', 'Periods', 'Requests', 'Submissions', 'UsualPattern', 'Shifts']);
+  prefetchTables(['Settings', 'Staff', 'Periods', 'Requests', 'Submissions', 'UsualPattern', 'Shifts', 'DayNotes']);
 
   var me = identify(req);
   var st = readSettings();
@@ -128,7 +128,33 @@ function meLoad(req, p) {
     }).map(function (r) {
       return { date: dateKey_(r.date), start: Number(r.start_min), end: Number(r.end_min), side: r.side };
     }).sort(function (a, b) { return a.date < b.date ? -1 : 1; });
+
+    // 全員の確定シフト（読むだけ）。紙のシフト表と同じ内容なので、名前と時間・ホール/キッチンだけ渡す
+    var who = {};
+    readTable('Staff').forEach(function (s) { who[s.staff_id] = s; });
+    week.board = readTable('Shifts', function (r) { return String(r.period_id) === week.id; })
+      .map(function (r) {
+        var s = who[r.staff_id] || {};
+        return {
+          date: dateKey_(r.date), start: Number(r.start_min), end: Number(r.end_min), side: r.side,
+          name: String(s.name || ''), leader: s.leader === true, hue: Number(s.color_hue) || 0,
+          me: r.staff_id === me.staff_id
+        };
+      })
+      .sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : a.start - b.start || a.end - b.end; });
+    var notes = {};
+    readTable('DayNotes').forEach(function (n) {
+      var d = dateKey_(n.date);
+      if (d >= week.startDate && d <= week.endDate && n.text) notes[d] = String(n.text);
+    });
+    week.notes = notes;
   }
+
+  // いちばん新しい確定済みの週（画面で「シフトが確定しました」と知らせる）
+  var pub = allWeeks.filter(function (r) { return r.status === 'published'; }).slice(-1)[0];
+  var latestPublished = pub
+    ? { id: String(pub.period_id), startDate: dateKey_(pub.start_date), endDate: dateKey_(pub.end_date) }
+    : null;
 
   var weeks = allWeeks.map(function (r) {
     return { id: String(r.period_id), startDate: dateKey_(r.start_date), endDate: dateKey_(r.end_date), status: r.status };
@@ -151,7 +177,8 @@ function meLoad(req, p) {
     usual: usual,
     month: month,
     week: week,
-    weeks: weeks
+    weeks: weeks,
+    latestPublished: latestPublished
   };
 }
 

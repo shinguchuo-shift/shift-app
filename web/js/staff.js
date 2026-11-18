@@ -27,6 +27,11 @@ let mode = 'home';        // home | editMonth | editWeek | done
 let view = null;          // 'month' | 'week'。①②のどちらを見ているか
 let draft = null;         // 入力中の内容
 let weekId = null;        // 週のプルダウンで選んだ週（null なら今の週）
+let pubTab = 'mine';      // 確定済みの週：mine（自分のシフト）| all（全員の表）
+
+/** 「シフトが確定しました」を一度見たか（この端末だけ覚える）。使えない環境では毎回出るだけ。 */
+const seenPub = id => { try { return localStorage.getItem('seenPub') === id; } catch (e) { return false; } };
+const markPub = id => { try { localStorage.setItem('seenPub', id); } catch (e) { /* 使えない環境 */ } };
 
 init();
 
@@ -252,6 +257,7 @@ function renderHome(el) {
           : `<span class="pill ${target && target.submitted ? 'ok' : 'ng'}">${
             target && target.submitted ? '提出済み' : '未提出'}</span>`}
     </div>
+    ${newPubBanner()}
     ${stepsBar(showWeek ? 'week' : 'month')}`;
 
   if (showWeek) {
@@ -313,19 +319,56 @@ function confirmedList(w) {
   }).join('')}</ul>`;
 }
 
+/**
+ * 全員の確定シフト（読むだけ）。スマホで見やすいよう、日ごとに「名前＋時間のバー」を並べる。
+ * 横は営業時間（8〜24時）。自分の行は色を濃くする。
+ */
+function boardView(w) {
+  const a = D.settings.openMin, b = D.settings.closeMin, span = b - a;
+  const pct = m => Math.max(0, Math.min(100, (m - a) / span * 100));
+  const SIDE = { hall: 'ホ', kitchen: 'キ' };
+  // 目盛り：2時間ごと
+  let ticks = '';
+  for (let m = Math.ceil(a / 120) * 120; m <= b; m += 120) {
+    ticks += `<span style="left:${pct(m)}%">${m / 60 === 24 ? 24 : m / 60}</span>`;
+  }
+  const rows = w.days.map(d => {
+    const list = (w.board || []).filter(x => x.date === d.date);
+    const note = (w.notes || {})[d.date];
+    const people = list.length ? list.map(x => `<div class="brow${x.me ? ' me' : ''}">
+        <span class="bn">${x.leader ? '★' : ''}${esc(x.name)}</span>
+        <div class="btrack"><i style="left:${pct(x.start)}%;width:${pct(x.end) - pct(x.start)}%;${
+          x.me ? '' : `background:hsl(${x.hue} 62% 84%)`}" title="${hm(x.start)}〜${hm(x.end)}">${hShort(x.start)}-${hShort(x.end)}<b>${SIDE[x.side] || ''}</b></i></div>
+      </div>`).join('') : '<p class="small" style="margin:4px 0 0">入っている人はいません</p>';
+    return `<div class="bday">
+      <p class="bhd ${d.dow === 5 ? 'we' : d.dow === 6 ? 'sun' : ''}">${d.label}（${d.wd}）<span>${list.length}人</span>${
+        note ? `<em>${esc(note)}</em>` : ''}</p>
+      <div class="bticks">${ticks}</div>
+      ${people}</div>`;
+  }).join('');
+  return `<div class="board">${rows}</div>
+    <p class="small">★は時間帯責任者。バーの「ホ」はホール、「キ」はキッチン。自分の行は青色です。</p>`;
+}
+
 /** ② 週の確認 */
 function renderWeekHome(w, m) {
   const base = w.submitted ? w.requests : (w.fromMonth || {});
   const hasBase = Object.keys(base).length > 0;
 
-  // 確定済みの週：確定したシフトを見せる（希望はたたんでおく）。直すことはできない
+  // 確定済みの週：自分のシフトと、全員の表を切り替えて見せる。直すことはできない
   if (w.status === 'published') {
+    markPub(w.id);                                   // 見たので「確定しました」は消す
     const n = (w.confirmed || []).length;
+    const tabs = `<div class="mtabs pubtabs">
+      <button class="mtab${pubTab === 'mine' ? ' on' : ''}" data-pub="mine">自分のシフト</button>
+      <button class="mtab${pubTab === 'all' ? ' on' : ''}" data-pub="all">全員の表</button></div>`;
+    const body = pubTab === 'all'
+      ? boardView(w)
+      : `<div class="box conf"><p class="eyebrow">確定したシフト（${n}日）</p>${confirmedList(w)}</div>
+        ${w.submitted ? `<details class="box"><summary class="eyebrow">出した希望を見る</summary>
+          ${weekList(w.days, w.requests, m)}</details>` : ''}`;
     return weekPicker(w)
-      + `<p class="dl">${fmt(w.startDate)}〜${fmt(w.endDate)} のシフト（確定済み）</p>
-      <div class="box conf"><p class="eyebrow">確定したシフト（${n}日）</p>${confirmedList(w)}</div>
-      ${w.submitted ? `<details class="box"><summary class="eyebrow">出した希望を見る</summary>
-        ${weekList(w.days, w.requests, m)}</details>` : ''}
+      + `<p class="dl">${fmt(w.startDate)}〜${fmt(w.endDate)} のシフト（確定済み）</p>${tabs}${body}
       <p class="small">変えたいときは店長に相談してください。</p>`;
   }
 
@@ -709,6 +752,14 @@ function renderDone(el) {
 
 /* ---------- 共通 ---------- */
 
+/** 新しく確定した週があれば知らせる（見たら出なくなる）。 */
+function newPubBanner() {
+  const p = D.latestPublished;
+  if (!p || seenPub(p.id) || (D.week && D.week.id === p.id && D.week.status === 'published')) return '';
+  return `<div class="newpub"><span>${fmt(p.startDate)}〜${fmt(p.endDate)} のシフトが確定しました</span>
+    <button class="btn sm" id="seePub" data-id="${esc(p.id)}">見る</button></div>`;
+}
+
 function bind() {
   document.querySelectorAll('[data-view]').forEach(b => b.onclick = () => {
     if (b.disabled) return;
@@ -730,6 +781,14 @@ function bind() {
     send(D.month.id, days, 'usual', `${monthLabel(D.month)}の暫定を出しました（${days.length}日）`);
   });
   on('mSubmit', submitMonth);
+  document.querySelectorAll('[data-pub]').forEach(b => b.onclick = () => { pubTab = b.dataset.pub; render(); });
+  if ($('seePub')) $('seePub').onclick = () => {
+    weekId = $('seePub').dataset.id;
+    view = 'week';
+    pubTab = 'mine';
+    $('body').innerHTML = '<div class="state" id="state">読み込んでいます…</div>';
+    load();
+  };
   if ($('wkSel')) $('wkSel').onchange = e => {
     weekId = e.target.value;
     view = 'week';

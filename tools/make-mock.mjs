@@ -146,8 +146,15 @@ function pastWeekFor(sid) {
     .sort((a, b) => a.date < b.date ? -1 : 1);
   const requests = {};
   confirmed.forEach(x => { requests[x.date] = { start: x.start, end: x.end }; });
+  // 全員の表（11/2の週の自動作成を1週前にずらした架空のもの）
+  const board = shifts.map(x => {
+    const s = byId[x.staffId];
+    return { date: shiftDate(x.date, -7), start: x.start, end: x.end, side: x.side,
+      name: s.name, leader: s.leader, hue: s.colorHue, me: x.staffId === sid };
+  }).sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : a.start - b.start);
   return { id: '2026-10-26', kind: 'week', startDate: '2026-10-26', endDate: '2026-11-01',
-    deadline: '2026-10-22 23:59', status: 'published', days, requests, submitted: true, method: 'usual', confirmed };
+    deadline: '2026-10-22 23:59', status: 'published', days, requests, submitted: true, method: 'usual', confirmed,
+    board, notes: { '2026-10-31': '棚卸し' } };
 }
 const staffWeeks = [
   { id: '2026-10-26', startDate: '2026-10-26', endDate: '2026-11-01', status: 'published' },
@@ -160,7 +167,7 @@ const data = {
   // 店長
   mgr: { mgr },
   // スタッフ：週の確認
-  week: { me: { ...weekScene, weeks: staffWeeks }, meWeeks: { '2026-10-26': pastWeekFor('s07') }, mgr },
+  week: { me: { ...weekScene, weeks: staffWeeks, latestPublished: staffWeeks[0] }, meWeeks: { '2026-10-26': pastWeekFor('s07') }, mgr },
   // スタッフ：確定済みの週を見ているところ（高橋）
   pub: { me: { ...meFor('s03', { monthOpen: false, monthSubmitted: true, weekSubmitted: true }), week: pastWeekFor('s03'), weeks: staffWeeks }, mgr },
   // スタッフ：月の暫定
