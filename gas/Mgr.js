@@ -102,7 +102,8 @@ function mgrLoad(req, p) {
   var requests = {}, submissions = {};
   readTable('Staff').forEach(function (s) {
     var id = s.staff_id;
-    if (weekSub[id]) {
+    // 週を「変更あり」で出した人は、週の希望をそのまま使う
+    if (weekSub[id] && weekSub[id].method !== 'usual') {
       requests[id] = weekReq[id] || {};
       submissions[id] = { method: weekSub[id].method, at: weekSub[id].at, source: 'week' };
       return;
@@ -116,6 +117,13 @@ function mgrLoad(req, p) {
       var r = (md.req[id] || {})[date];
       if (r) got[date] = r;
     });
+    // 週を「このまま（いつも通り）」で出した人は、月の希望そのものを使う。
+    // 以前は月をまたぐ週で12月分が抜けたまま出されていたので、出された中身ではなく月の希望を見る
+    if (weekSub[id]) {
+      requests[id] = from ? got : (weekReq[id] || {});
+      submissions[id] = { method: weekSub[id].method, at: weekSub[id].at, source: 'week' };
+      return;
+    }
     if (from) {
       requests[id] = got;
       submissions[id] = { method: 'month', at: from.at, source: 'month' };

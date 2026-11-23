@@ -106,19 +106,16 @@ function meLoad(req, p) {
   var month = pack(cur.month);
   var week = pack(pickedWeek);
 
-  // 週の初期値：その週がまだ未提出なら、その週が属する月の暫定から該当日を引っぱってくる
-  if (week && !week.submitted) {
-    var parentId = pickedWeek.parent_id ? String(pickedWeek.parent_id) : (month ? month.id : '');
-    var monthReq = month && month.id === parentId ? month.requests : requestsOf_(parentId, me.staff_id);
-    var base = {};
-    week.days.forEach(function (d) {
-      if (monthReq[d.date]) base[d.date] = monthReq[d.date];
-    });
-    week.fromMonth = base;
-    // 月の希望を出していれば、週を出さなくても月の希望がシフト表に使われる
-    week.monthSubmitted = readTable('Submissions', function (r) {
-      return String(r.period_id) === parentId && r.staff_id === me.staff_id;
-    }).length > 0;
+  // 週の初期値：その週の各日を「その日が入る月」の希望から引っぱってくる。
+  // 11/30〜12/6 のように月をまたぐ週は、11/30 は11月、12/1〜は12月の希望を使う（親の月だけ見ると12月分が休みになる）
+  if (week) {
+    var mb = monthWishesFor_(me.staff_id, week.days.map(function (d) { return d.date; }));
+    if (!week.submitted) {
+      week.fromMonth = mb.req;
+      week.monthSubmitted = mb.submitted;           // 月の希望を出していれば、週を出さなくても月の希望が使われる
+    } else if (week.method === 'usual' && mb.submitted) {
+      week.requests = mb.req;                        // 「このまま」で出した週は、月の希望そのもの
+    }
   }
 
   // 確定済みの週は、自分の確定シフトも返す
@@ -306,4 +303,28 @@ function meLink(req, p) {
   });
 
   return { staff: { id: hit.staff_id, name: hit.name }, already: false };
+}
+
+/**
+ * その人の、指定した日付の「月の希望」。日ごとに、その日が入る月（月の暫定）の希望を使う。
+ * @returns {{ req: Object<string,{start,end}>, submitted: boolean }}  submitted＝どれかの月を出している
+ */
+function monthWishesFor_(staffId, dates) {
+  var months = readTable('Periods', function (r) { return r.kind === 'month'; });
+  var cache = {}, req = {}, submitted = false;
+  dates.forEach(function (date) {
+    var m = months.filter(function (p) { return dateKey_(p.start_date) <= date && date <= dateKey_(p.end_date); })[0];
+    if (!m) return;
+    var id = String(m.period_id);
+    if (!cache[id]) {
+      cache[id] = {
+        req: requestsOf_(id, staffId),
+        sub: readTable('Submissions', function (r) { return String(r.period_id) === id && r.staff_id === staffId; }).length > 0
+      };
+    }
+    if (!cache[id].sub) return;
+    submitted = true;
+    if (cache[id].req[date]) req[date] = cache[id].req[date];
+  });
+  return { req: req, submitted: submitted };
 }
