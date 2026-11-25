@@ -256,7 +256,31 @@ function applyDropdowns(key) {
     sh.getRange(2, i + 1, rows, 1).setDataValidation(rule);
     n++;
   });
+
+  if (key === 'Staff') applyColorPalette_(sh, header.indexOf(jp.color_hue), rows);
   return n;
+}
+
+/**
+ * スタッフの「色」の列に、選んだ色の背景が付くようにする（条件付き書式）。
+ * ほかの列の条件付き書式は残し、この列の分だけ作り直す。何回実行しても同じ。
+ * @param {number} i 色の列の位置（0始まり）。無ければ何もしない
+ */
+function applyColorPalette_(sh, i, rows) {
+  if (i < 0) return;
+  var range = sh.getRange(2, i + 1, rows, 1);
+  var col = i + 1;
+  var keep = sh.getConditionalFormatRules().filter(function (r) {
+    return !r.getRanges().some(function (g) { return g.getColumn() === col && g.getNumColumns() === 1; });
+  });
+  var mine = COLOR_PALETTE.map(function (c) {
+    return SpreadsheetApp.newConditionalFormatRule()
+      .whenTextEqualTo(c[1])
+      .setBackground(pastel_(c[0]))       // シフト表のバーと同じ淡い色
+      .setRanges([range])
+      .build();
+  });
+  sh.setConditionalFormatRules(keep.concat(mine));
 }
 
 /** プルダウンを付けるシートすべてにかける。 */

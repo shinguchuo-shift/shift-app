@@ -59,7 +59,8 @@ var COLUMNS = {
     ['closer',            '締め作業'],
     ['duty',              '担当業務'],
     ['staff_level',       'スタッフレベル'],
-    ['day_hours',         '1日の勤務時間'],
+    ['day_min_h',         '1日の最短（時間）'],
+    ['day_max_h',         '1日の最長（時間）'],
     ['ng_staff_ids',      '組ませない相手'],
     ['color_hue',         '色'],
     ['memo',              'メモ']
@@ -200,11 +201,47 @@ var DUTIES = [
  */
 var STAFF_LEVELS = { 1: '1 半人前', 2: '2 一人前', 3: '3 ベテラン' };
 
+/**
+ * スタッフの色（カラーパレット）。[色相, シートに見える名前]。
+ * シートでは名前をプルダウンで選び、セルの背景にその色が付く（2026-11-25 オーナー要望）。
+ * コードの中は今までどおり色相（0〜360）で持つので、画面とシフト表はそのまま動く。
+ */
+var COLOR_PALETTE = [
+  [0, '赤'], [15, '朱色'], [30, 'オレンジ'], [50, '黄'], [85, '黄緑'], [125, '緑'],
+  [165, '青緑'], [190, '水色'], [215, '青'], [240, '藍'], [275, '紫'], [325, 'ピンク']
+];
+
+/** 色相をいちばん近いパレットの色相にする（前の数字のままの欄や、サンプルの色相に使う）。 */
+function nearestHue_(v) {
+  var h = ((Number(v) % 360) + 360) % 360;
+  var best = COLOR_PALETTE[0][0], bestD = 999;
+  COLOR_PALETTE.forEach(function (c) {
+    var d = Math.abs(c[0] - h); d = Math.min(d, 360 - d);
+    if (d < bestD) { bestD = d; best = c[0]; }
+  });
+  return best;
+}
+
+/** パレットの中で、いちばん使われていない色相（同じ数なら並びの早い方）。 */
+function leastUsedHue_(hues) {
+  var count = {};
+  hues.forEach(function (h) {
+    if (h === '' || h === null || h === undefined || !isFinite(Number(h))) return;
+    var k = nearestHue_(h); count[k] = (count[k] || 0) + 1;
+  });
+  var best = COLOR_PALETTE[0][0], bestN = Infinity;
+  COLOR_PALETTE.forEach(function (c) {
+    var n = count[c[0]] || 0;
+    if (n < bestN) { bestN = n; best = c[0]; }
+  });
+  return best;
+}
+
 var TEXT_COLUMNS = {
   period_id: true, parent_id: true,
   date: true, start_date: true, end_date: true, deadline_at: true,
   staff_id: true, pos_key: true, rule_key: true,
-  invite_code: true, line_user_id: true, ng_staff_ids: true, duty: true, type: true, hours: true, day_hours: true,
+  invite_code: true, line_user_id: true, ng_staff_ids: true, duty: true, type: true, hours: true,
   start_min: true, end_min: true, dow: true
 };
 
@@ -222,7 +259,8 @@ var VALUE_MAPS = {
   role:     { staff: 'スタッフ', manager: '店長' },
   duty:     { hall: 'ホール', kitchen: 'キッチン', both: '両方', trainee: '研修中' },
   staff_level: STAFF_LEVELS,
-  side:     { hall: 'ホール', kitchen: 'キッチン' },
+  color_hue: (function () { var m = {}; COLOR_PALETTE.forEach(function (c) { m[c[0]] = c[1]; }); return m; })(),
+  side:   { hall: 'ホール', kitchen: 'キッチン' },
   kind:     { month: '月の暫定', week: '週の確認' },
   status:   { draft: '準備中', open: '受付中', closed: '締切後', published: '確定済み' },
   method:   { usual: 'いつも通り', custom: '変更あり' },
@@ -274,6 +312,10 @@ function toSheetValue(sheetKey, col, v) {
   if (UNIT_COLUMNS[col] && v !== '' && v !== null && v !== undefined) {
     return UNIT_COLUMNS[col].toSheet(v);
   }
+  // 色：パレットに無い色相（137 など）は、いちばん近いパレットの色にして名前で入れる
+  if (col === 'color_hue' && v !== '' && v !== null && v !== undefined && isFinite(Number(v))) {
+    v = nearestHue_(v);
+  }
   var map = valueMapOf(sheetKey, col);
   if (map && map[v] !== undefined) return map[v];
   return v;
@@ -314,7 +356,8 @@ function dropdownsOf(sheetKey) {
       type: STAFF_TYPES,                 // 社員 / 主婦 / 大学生 / 高校生
       role: jp('role'),                  // スタッフ / 店長
       duty: jp('duty'),                  // ホール / キッチン / 両方 / 研修中
-      staff_level: jp('staff_level')     // 1 半人前 / 2 一人前 / 3 ベテラン
+      staff_level: jp('staff_level'),    // 1 半人前 / 2 一人前 / 3 ベテラン
+      color_hue: jp('color_hue')         // 赤 / 朱色 / … / ピンク（セルの背景にその色が付く）
     },
     Periods: {
       kind: jp('kind'),                  // 月の暫定 / 週の確認

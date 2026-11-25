@@ -47,7 +47,8 @@ function mgrLoad(req, p) {
       // 1日の勤務時間（分）。スタッフの欄が空ならレベルの既定
       dayMin: dayLenOfStaff_(s, levelHours).min,
       dayMax: dayLenOfStaff_(s, levelHours).max,
-      dayHours: String(s.day_hours || ''),
+      // スタッフの欄に最短・最長のどちらかが入っていれば「個別」と出す
+      dayHours: hasDayHours_(s) ? 'custom' : '',
       ng: String(s.ng_staff_ids || '').split(',').map(function (x) { return x.trim(); }).filter(Boolean),
       colorHue: Number(s.color_hue) || 0,
       memo: s.memo || ''
@@ -471,20 +472,49 @@ function levelHoursOf_(st) {
   return out;
 }
 
-/**
- * スタッフの1日の勤務時間（分）。「1日の勤務時間」の欄に「5」なら5時間ちょうど、「4-6」なら4〜6時間。
- * 空や読めない値ならレベルの既定。
- */
-function dayLenOfStaff_(s, levelHours) {
-  var def = levelHours[Number(s.staff_level) || 2] || levelHours[2];
-  var t = String(s.day_hours === undefined ? '' : s.day_hours)
+/** 時間の欄（「5」「4.5」「５時間」）を数にする。空や読めない値は null。 */
+function hoursNum_(v) {
+  if (v === undefined || v === null || v === '') return null;
+  var t = String(v)
+    .replace(/[０-９．]/g, function (c) { return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); })
+    .replace(/時間|h/gi, '').trim();
+  var n = Number(t);
+  return (t !== '' && n > 0 && n <= 24) ? n : null;
+}
+
+/** 移行前の「1日の勤務時間」の列（'7' や '4-6'）。シートにまだ残っていれば読む。 */
+function oldDayHours_(s) {
+  var t = String(s['1日の勤務時間'] === undefined ? '' : s['1日の勤務時間'])
     .replace(/[０-９．]/g, function (c) { return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); })
     .replace(/[〜～ー－−—]/g, '-').replace(/時間|h/gi, '').trim();
   var m = t.match(/^(\d+(?:\.\d+)?)(?:\s*-\s*(\d+(?:\.\d+)?))?$/);
-  if (!m) return def;
-  var a = Number(m[1]), b = m[2] ? Number(m[2]) : a;
-  if (!(a > 0 && a <= 24 && b >= a && b <= 24)) return def;
-  return { min: Math.round(a * 60), max: Math.round(b * 60) };
+  if (!m) return null;
+  // 1つだけなら「最長」として読む（2026-11-25 オーナー要望：7なら7時間以下でも入れる）
+  return m[2] ? { min: Number(m[1]), max: Number(m[2]) } : { min: null, max: Number(m[1]) };
+}
+
+/** スタッフの欄に1日の勤務時間が入っているか。 */
+function hasDayHours_(s) {
+  return hoursNum_(s.day_min_h) !== null || hoursNum_(s.day_max_h) !== null || !!oldDayHours_(s);
+}
+
+/**
+ * スタッフの1日の勤務時間（分）。「1日の最短（時間）」「1日の最長（時間）」の欄から読む。
+ * 空の欄はレベルの既定。最長だけ入れれば「最長以下で、入れる枠があれば入れる」になる。
+ * 最短が最長より長くなるときは、最短を最長に合わせる。
+ */
+function dayLenOfStaff_(s, levelHours) {
+  var def = levelHours[Number(s.staff_level) || 2] || levelHours[2];
+  var a = hoursNum_(s.day_min_h), b = hoursNum_(s.day_max_h);
+  if (a === null && b === null) {
+    var old = oldDayHours_(s);
+    if (old) { a = old.min; b = old.max; }
+  }
+  var max = b !== null ? Math.round(b * 60) : def.max;
+  var min = a !== null ? Math.round(a * 60) : def.min;
+  if (a !== null && b === null) max = Math.max(min, max);   // 最短だけ入れたら、最長は既定（短すぎれば最短まで）
+  if (min > max) min = max;
+  return { min: min, max: max };
 }
 
 /**

@@ -58,22 +58,25 @@ function menuAddStaff() {
   var id = nextStaffId_();
   var code = newInviteCode();
 
-  // 色は既存とかぶりにくいように、人数に応じてずらす
-  var hue = (readTable('Staff').length * 137) % 360;
+  // 色はカラーパレットの中で、いちばん使われていない色にする
+  var hue = leastUsedHue_(readTable('Staff').map(function (s) { return s.color_hue; }));
 
-  appendRowTo('Staff', {
+  // 列は見出しの名前で合わせて足す（店長が列を並べ替えていても、正しい列に入る）
+  appendRowsByHeader_('Staff', [{
     staff_id: id, name: name, type: '大学生', role: 'staff',
     active: true, line_user_id: '', invite_code: code, invite_expires_at: '',
     weekly_cap_min: 20 * 60, leader: false, closer: false,
-    duty: 'trainee', staff_level: 1, day_hours: '',   // 入ったばかりは「研修中」「1 半人前」
+    duty: 'trainee', staff_level: 1, day_min_h: '', day_max_h: '',   // 入ったばかりは「研修中」「1 半人前」
     ng_staff_ids: '', color_hue: hue, memo: ''
-  });
+  }]);
 
   // 真偽の列をチェックボックスにする（追加した行だけ）
   var sh = sheetOf('Staff');
   var row = sh.getLastRow();
-  keysOf('Staff').forEach(function (k, i) {
-    if (BOOL_COLUMNS[k]) sh.getRange(row, i + 1).insertCheckboxes();
+  var head = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(function (h) { return String(h).trim(); });
+  COLUMNS.Staff.forEach(function (c) {
+    var i = head.indexOf(c[1]);
+    if (BOOL_COLUMNS[c[0]] && i >= 0) sh.getRange(row, i + 1).insertCheckboxes();
   });
   sh.getRange(row, 1).activate();
   applyDropdowns('Staff');                       // 足した行にもプルダウンを付ける

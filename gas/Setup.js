@@ -61,7 +61,7 @@ function setupSampleData() {
       i === 0 ? 'manager' : 'staff',       // 1人目を店長役にしておく
       true, '',                             // active / line_user_id
       newInviteCode(), '',               // invite_code / invite_expires_at
-      s.capMin, s.leader, s.closer, s.duty, s.level, '',
+      s.capMin, s.leader, s.closer, s.duty, s.level, '', '',   // 1日の最短・最長（空＝レベルの既定）
       (s.ng || []).join(','), s.colorHue, ''
     ];
   }));
@@ -152,7 +152,6 @@ function setupSampleData() {
   writeTable('Holidays', HOLIDAYS_JP);
   writeTable('BusyPeriods', []);
   textWholeColumn_('BusyPeriods', 'hours');
-  textWholeColumn_('Staff', 'day_hours');
 
   writeTable('Log', [[now, 'setup', '', 'サンプルデータを投入']]);
 }

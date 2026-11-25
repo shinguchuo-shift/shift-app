@@ -6,7 +6,7 @@
 
 import { call, callRetry, ApiError, isMock } from './api.js?v=5';
 import * as liffAuth from './liff-auth.js?v=1';
-import { generate, checksAll, sidesOf, isTrainee, endLimitOf, levelOf, needAt, busyOn, LEVEL_LABEL, dayLenOf, needsHelp } from './scheduler.js?v=5';
+import { generate, checksAll, sidesOf, isTrainee, endLimitOf, levelOf, needAt, busyOn, LEVEL_LABEL, dayLenOf, needsHelp } from './scheduler.js?v=6';
 
 const $ = id => document.getElementById(id);
 

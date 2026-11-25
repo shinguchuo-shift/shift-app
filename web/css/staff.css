@@ -83,6 +83,11 @@ ul.pat .tagc { font-size: 10px; color: var(--accent); margin-left: 6px; }
   font: inherit; font-size: 13px; }
 .day .sw { grid-column: 2; display: flex; gap: 6px; align-items: center; font-size: 12px; }
 
+/* フリー（何時でも入れる）。チェックすると時刻は選べなくなる */
+.sw label[for^="f"], .sw label[for="dF"] { margin-right: 4px; }
+.sw input[id^="f"], .sw input#dF { margin-left: 8px; }
+.times.free select { opacity: .5; }
+
 /* 月の入力は曜日ごと */
 .dowbox { border: 1px solid var(--line); border-radius: 10px; padding: 11px 13px; margin: 12px 0; }
 

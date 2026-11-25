@@ -217,10 +217,52 @@ function migrateStaffColumns_(sh) {
     col.clearDataValidations();
     col.setNumberFormat('@');          // 「4-6」が日付に化けないように
     sh.getRange(1, cl + 1).setValue('1日の勤務時間');
-    done.push('スタッフ：「1日の勤務時間」の列を足しました（空ならレベルの既定。5なら5時間、4-6なら4〜6時間）');
+    h = head();
   }
 
-  if (done.length) { invalidateTable('Staff'); applyDropdowns('Staff'); }
+  // D. 「1日の勤務時間」（1列）→「1日の最短（時間）」「1日の最長（時間）」（2列）。2026-11-25 オーナー要望
+  //    今の列の見出しを「最短」に変え、右に「最長」を差し込む。「7」は最長7時間、「4-6」は最短4・最長6
+  var co = h.indexOf('1日の勤務時間') + 1;
+  if (co && h.indexOf('1日の最短（時間）') < 0) {
+    var ov = n ? sh.getRange(2, co, n, 1).getValues() : [];
+    var mins = [], maxs = [];
+    for (var j = 0; j < n; j++) {
+      var raw = ov[j][0];
+      var p = oldDayHours_({ '1日の勤務時間': raw });
+      if (p) { mins.push([p.min === null ? '' : String(p.min)]); maxs.push([String(p.max)]); }
+      else { mins.push([raw === null ? '' : raw]); maxs.push(['']); }   // 読めない値は最短の欄にそのまま残す
+    }
+    sh.insertColumnAfter(co);
+    var mx = sh.getRange(1, co + 1, sh.getMaxRows(), 1);
+    mx.clearDataValidations();
+    mx.setNumberFormat('@');
+    sh.getRange(1, co).setValue('1日の最短（時間）');
+    sh.getRange(1, co + 1).setValue('1日の最長（時間）');
+    if (n) { sh.getRange(2, co, n, 1).setValues(mins); sh.getRange(2, co + 1, n, 1).setValues(maxs); }
+    done.push('スタッフ：「1日の勤務時間」を「1日の最短（時間）」「1日の最長（時間）」の2列に分けました（「7」は最長7時間、「4-6」は最短4・最長6。空ならレベルの既定）');
+    h = head();
+  }
+
+  // E. 色：数字（色相）のままの欄を、カラーパレットの色の名前にする（いちばん近い色）
+  var cc = h.indexOf('色') + 1;
+  if (cc && n) {
+    var cv = sh.getRange(2, cc, n, 1).getValues();
+    var changedColor = 0;
+    var named = cv.map(function (x, k) {
+      var v = x[0];
+      if (blank(k) || v === '' || v === null || !isFinite(Number(v))) return [v];
+      changedColor++;
+      return [toSheetValue('Staff', 'color_hue', Number(v))];
+    });
+    if (changedColor) {
+      sh.getRange(2, cc, n, 1).setValues(named);
+      done.push('スタッフ：「色」を数字から色の名前にしました（' + changedColor + '人。プルダウンで選べて、セルにその色が付きます）');
+    }
+  }
+
+  // プルダウンと色の背景は毎回かけ直す（何回やっても同じ）
+  invalidateTable('Staff');
+  applyDropdowns('Staff');
   return done;
 }
 

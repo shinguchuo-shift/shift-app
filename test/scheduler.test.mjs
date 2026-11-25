@@ -224,6 +224,57 @@ test('1日の勤務時間から外れると「勤務時間」の注意が出る'
   assert.ok(c && c.level === 'warn');
 });
 
+test('1日の勤務時間：最長だけ決めた人は、最長より短い枠にも入る', () => {
+  const input = buildInput();
+  // 全員「最長7時間」。最短は全体の既定（3時間）
+  input.staff = input.staff.map(s => ({ ...s, dayMin: input.minLen, dayMax: 420 }));
+  const shifts = generate(input);
+  assert.ok(shifts.length > 0);
+  for (const x of shifts) {
+    const len = x.end - x.start;
+    assert.ok(len >= input.minLen && len <= 420, `${x.staffId} ${x.date} が ${len / 60}時間`);
+  }
+  assert.ok(shifts.some(x => x.end - x.start < 420), '7時間より短い勤務が1件も無い');
+});
+
+test('ラスト（閉店まで）には締め作業ができる人しか入らない', () => {
+  for (const input of [buildInput(), buildInput30()]) {
+    for (const x of generate(input)) {
+      if (x.end === input.closeMin) {
+        assert.ok(byId(input, x.staffId).closer, `${x.staffId} ${x.date} は締めができないのにラストに入った`);
+      }
+    }
+  }
+});
+
+test('ラスト：閉店まで人が要る日でも、締めができない人は入らない（直す前は5人入った）', () => {
+  const input = buildInput();
+  const d = DAYS[0].date;
+  // 全員が17時〜閉店で出られて、閉店まで各3人ずつ要る日
+  input.staff.forEach(s => { input.requests[s.id] = { ...(input.requests[s.id] || {}), [d]: { start: 17 * 60, end: input.closeMin } }; });
+  for (const t of Object.keys(input.demand)) {
+    for (const side of ['hall', 'kitchen']) input.demand[t][side] = input.demand[t][side].map(() => 3);
+  }
+  const last = generate(input).filter(x => x.end === input.closeMin);
+  assert.ok(last.length > 0, 'ラストに誰も入っていない');
+  for (const x of last) assert.ok(byId(input, x.staffId).closer, `${x.staffId} ${x.date}`);
+});
+
+test('ラスト：ルール「締め」を切っていても、締めができない人は入らない', () => {
+  const input = buildInput();
+  input.rules = { ...input.rules, close: false };
+  for (const x of generate(input)) {
+    if (x.end === input.closeMin) assert.ok(byId(input, x.staffId).closer, `${x.staffId} ${x.date}`);
+  }
+});
+
+test('ラストに締めができない人を手で入れるとチェックで出る', () => {
+  const input = buildInput();
+  const s = input.staff.find(x => !x.closer && endLimitOf(x, input) >= input.closeMin);
+  const shifts = [{ date: DAYS[0].date, staffId: s.id, side: sidesOf(s)[0], start: input.closeMin - 240, end: input.closeMin }];
+  assert.ok(checks(input, shifts, DAYS[0].date).some(c => c.kind === 'ラスト'));
+});
+
 test('祝日は祝日の表を使う（土日と同じくピーク加算も付く）', () => {
   const holidayTable = { hall: SLOTS.map(() => 5), kitchen: SLOTS.map(() => 5) };
   const input = buildInput();

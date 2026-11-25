@@ -204,6 +204,10 @@ export function generate(input) {
           reqEnd = Math.min(reqEnd, li >= 0 ? li : nSlots);
         }
 
+        // ラスト（閉店まで）は締め作業ができる人だけ。できない人は閉店の1コマ前で終わらせる
+        //（2026-11-25 オーナー要望。ルール「締め」を切っていても守る）
+        if (!s.closer && reqEnd >= nSlots) reqEnd = nSlots - 1;
+
         const trainee = needsHelp(s);          // 研修中・半人前
         const veteran = isVeteran(s);
         for (const side of sidesOf(s)) {
@@ -349,6 +353,13 @@ export function checks(input, shifts, date) {
     out.push({ kind: '締め', level: lv('締め'), message: '閉店時に締め作業ができる人がいない' });
   }
 
+  // ラスト（閉店まで）に締め作業ができない人が入っている（手直しで入れたとき）
+  list.forEach(x => {
+    if (x.end >= input.closeMin && !x.staff.closer) {
+      out.push({ kind: 'ラスト', level: 'error', message: `${x.staff.name}さんは締め作業ができないので、ラスト（${hhmm_(input.closeMin)}まで）には入れません` });
+    }
+  });
+
   // 区分の時間制限（高校生は22時まで）
   list.forEach(x => {
     const limit = endLimitOf(x.staff, input);
@@ -403,7 +414,7 @@ export function checks(input, shifts, date) {
 
   // level は Rules シートの level 列から読む。無ければ既定値
   function lv(kind) {
-    const key = { '不足': null, '責任者': 'leader', 'ピーク': 'peak3', '締め': 'close', 'NG': 'ng', '研修中': 'rookie', '時間外': null, '担当外': null, '勤務時間': null }[kind];
+    const key = { '不足': null, '責任者': 'leader', 'ピーク': 'peak3', '締め': 'close', 'NG': 'ng', '研修中': 'rookie', '時間外': null, '担当外': null, '勤務時間': null, 'ラスト': null }[kind];
     if (!key) return 'error';
     return (input.ruleLevels && input.ruleLevels[key]) || (key === 'rookie' ? 'warn' : 'error');
   }

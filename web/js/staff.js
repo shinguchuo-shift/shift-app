@@ -431,7 +431,7 @@ function dowSummary(m) {
     const [s, e] = best.split('-').map(Number);
     const others = Object.keys(got).length - 1;
     return `<li class="${i === 5 ? 'we' : i === 6 ? 'sun' : ''}"><span>${w}曜</span>
-      <b>${hm(s)}〜${hm(e)}${others ? `<span class="tagc">ほか${others}通り</span>` : ''}</b></li>`;
+      <b>${reqText({ start: s, end: e })}${others ? `<span class="tagc">ほか${others}通り</span>` : ''}</b></li>`;
   }).join('')}</ul>`;
 }
 
@@ -444,12 +444,50 @@ function weekList(days, req, m) {
       ((!!r !== !!mv) || (r && mv && (r.start !== mv.start || r.end !== mv.end)));
     return `<li class="${d.dow === 5 ? 'we' : d.dow === 6 ? 'sun' : ''}">
       <span>${d.label}（${d.wd}）</span>
-      <b class="${r ? (changed ? 'chg' : '') : 'off'}">${r ? `${hm(r.start)}〜${hm(r.end)}` : '休み'}${
+      <b class="${r ? (changed ? 'chg' : '') : 'off'}">${r ? reqText(r) : '休み'}${
         changed ? '<span class="tagc">暫定から変更</span>' : ''}</b></li>`;
   }).join('')}</ul>`;
 }
 
 /* ---------- 入力 ---------- */
+
+/**
+ * フリー（その日は何時でもどこでも入れる）。2026-11-25 オーナー要望。
+ * 保存は「営業開始〜入れる最後の時刻」の希望として出すので、自動作成やシートはそのまま動く。
+ * 高校生は22時までなので、フリーでも22時まで。
+ */
+const freeRange = () => ({ start: D.settings.openMin, end: Math.min(D.settings.endLimit, D.settings.closeMin) });
+const isFree = v => !!v && v.start === freeRange().start && v.end === freeRange().end;
+/** 希望の時間を文字にする。フリーなら「フリー」 */
+const reqText = v => isFree(v) ? 'フリー' : `${hm(v.start)}〜${hm(v.end)}`;
+
+/** 「出られる」の横に置くフリーのチェック */
+const freeBox = (id, v) =>
+  `<input type="checkbox" id="${id}" ${isFree(v) ? 'checked' : ''}><label for="${id}">フリー</label>`;
+
+/**
+ * フリーのチェックを付けたら、出られるに印を付けて時刻を営業時間いっぱいにし、時刻は選べなくする。
+ * 外したら時刻をまた選べるようにする。そのあと after() で下書きに入れる。
+ */
+function wireFree(fId, onId, sId, eId, tmId, after) {
+  const f = $(fId);
+  const lock = () => {
+    $(sId).disabled = $(eId).disabled = f.checked;
+    $(tmId).classList.toggle('free', f.checked);
+  };
+  lock();
+  f.onchange = () => {
+    if (f.checked) {
+      const r = freeRange();
+      $(onId).checked = true;
+      $(tmId).classList.remove('off');
+      $(sId).value = r.start;
+      $(eId).value = r.end;
+    }
+    lock();
+    after();
+  };
+}
 
 /**
  * 時刻の選択肢。終了側は区分の上限で切る（高校生は22時まで）。
@@ -541,9 +579,10 @@ function bindDow(el) {
       $('tm' + i).classList.toggle('off', !on);
       renderEditMonth(el);
     };
-    $('on' + i).onchange = apply;
+    $('on' + i).onchange = () => { if (!$('on' + i).checked) $('f' + i).checked = false; apply(); };
     $('s' + i).onchange = apply;
     $('e' + i).onchange = apply;
+    wireFree('f' + i, 'on' + i, 's' + i, 'e' + i, 'tm' + i, apply);
   }
 }
 
@@ -561,7 +600,7 @@ function daySection() {
     const num = Number(d.date.slice(8));
     cells.push(`<button class="cal-cell${cls}${sel}${v ? ' on' : ''}" data-date="${d.date}">
       <span class="n">${num}</span>
-      <span class="t">${v ? `${hShort(v.start)}-${hShort(v.end)}` : '休'}</span>
+      <span class="t">${v ? (isFree(v) ? 'フリー' : `${hShort(v.start)}-${hShort(v.end)}`) : '休'}</span>
     </button>`);
   });
 
@@ -578,7 +617,7 @@ function dayEditor(date) {
   return `<div class="dayedit">
     <p class="eyebrow">${d.label}（${d.wd}）</p>
     <div class="sw"><input type="checkbox" id="dOn" ${v ? 'checked' : ''}>
-      <label for="dOn">出られる</label></div>
+      <label for="dOn">出られる</label>${freeBox('dF', v)}</div>
     <div class="times${v ? '' : ' off'}" id="dTm">
       <select id="dS">${timeOpts(v ? v.start : D.settings.openMin, false)}</select>〜
       <select id="dE">${timeOpts(v ? v.end : D.settings.openMin + D.settings.minLen, true)}</select>
@@ -597,7 +636,11 @@ function bindDay(el) {
   });
 
   if (!editDate) return;
-  $('dOn').onchange = e => $('dTm').classList.toggle('off', !e.target.checked);
+  $('dOn').onchange = e => {
+    $('dTm').classList.toggle('off', !e.target.checked);
+    if (!e.target.checked && $('dF').checked) { $('dF').checked = false; $('dF').onchange(); }
+  };
+  wireFree('dF', 'dOn', 'dS', 'dE', 'dTm', () => {});
   $('dOk').onclick = () => {
     if (!$('dOn').checked) {
       draft.byDate[editDate] = null;
@@ -644,7 +687,7 @@ function dayRow(i, label, v, kind, d) {
   return `<div class="day${cls}">
     <div class="d">${label}<small>${sub}</small></div>
     <div class="sw"><input type="checkbox" id="on${i}" ${on ? 'checked' : ''}>
-      <label for="on${i}">出られる</label></div>
+      <label for="on${i}">出られる</label>${freeBox('f' + i, v)}</div>
     <div class="times${on ? '' : ' off'}" id="tm${i}" style="grid-column:2">
       <select id="s${i}">${timeOpts(v ? v.start : D.settings.openMin, false)}</select>〜
       <select id="e${i}">${timeOpts(v ? v.end : D.settings.openMin + D.settings.minLen, true)}</select>
@@ -655,16 +698,17 @@ function dayRow(i, label, v, kind, d) {
 function bindDays(kind) {
   const n = kind === 'dow' ? 7 : D.week.days.length;
   for (let i = 0; i < n; i++) {
-    $('on' + i).onchange = e => {
-      $('tm' + i).classList.toggle('off', !e.target.checked);
-      draft.byIndex[i] = e.target.checked
+    const save = () => {
+      draft.byIndex[i] = $('on' + i).checked
         ? { start: Number($('s' + i).value), end: Number($('e' + i).value) } : null;
     };
-    $('s' + i).onchange = $('e' + i).onchange = () => {
-      if ($('on' + i).checked) {
-        draft.byIndex[i] = { start: Number($('s' + i).value), end: Number($('e' + i).value) };
-      }
+    $('on' + i).onchange = e => {
+      $('tm' + i).classList.toggle('off', !e.target.checked);
+      if (!e.target.checked && $('f' + i).checked) { $('f' + i).checked = false; $('f' + i).onchange(); }
+      save();
     };
+    $('s' + i).onchange = $('e' + i).onchange = save;
+    wireFree('f' + i, 'on' + i, 's' + i, 'e' + i, 'tm' + i, save);
   }
 }
 
